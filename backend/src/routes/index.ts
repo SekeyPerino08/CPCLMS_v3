@@ -9,6 +9,11 @@ import categoryRoutes from './category.routes';
 import ebookRoutes from './ebook.routes';
 import transactionRoutes from './transaction.routes';
 import reservationRoutes from './reservation.routes';
+import policyRoutes from './policy.routes';
+import analyticsRoutes from './analytics.routes';
+import reportRoutes from './report.routes';
+import activityRoutes from './activity.routes';
+import notificationRoutes from './notification.routes';
 
 const router = Router();
 
@@ -24,6 +29,11 @@ router.use('/categories', categoryRoutes);
 router.use('/ebooks', ebookRoutes);
 router.use('/transactions', transactionRoutes);
 router.use('/reservations', reservationRoutes);
+router.use('/policies', policyRoutes);
+router.use('/analytics', analyticsRoutes);
+router.use('/reports', reportRoutes);
+router.use('/activities', activityRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;
 

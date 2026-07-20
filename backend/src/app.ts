@@ -85,14 +85,23 @@ app.listen(env.PORT, () => {
     console.log('   POST   /api/categories            (LIBRARIAN)');
     console.log('   PUT    /api/categories/:id         (LIBRARIAN)');
     console.log('   DELETE /api/categories/:id         (LIBRARIAN)');
-    console.log('   POST   /api/transactions/requests');
+console.log('   POST   /api/transactions/requests');
     console.log('   GET    /api/transactions/requests');
     console.log('   PUT    /api/transactions/requests/:id/approve');
     console.log('   PUT    /api/transactions/requests/:id/reject');
     console.log('   GET    /api/transactions');
-    console.log('   PUT    /api/transactions/:id/return');
+    console.log('   GET    /api/transactions/:id');
+    console.log('   PUT    /api/transactions/:id/return          (QR or ID)');
+    console.log('   PUT    /api/transactions/:id/pay-fine');
+    console.log('   POST   /api/transactions/check-overdue');
+    console.log('   GET    /api/transactions/my-count');
     console.log('   POST   /api/reservations');
+    console.log('   GET    /api/reservations');
     console.log('   PUT    /api/reservations/:id/cancel');
+    console.log('   GET    /api/policies                       (LIBRARIAN)');
+    console.log('   GET    /api/policies/:key                  (LIBRARIAN)');
+    console.log('   PUT    /api/policies                       (LIBRARIAN)');
+    console.log('   DELETE /api/policies/:key                  (LIBRARIAN)');
     console.log('');
   }
 });

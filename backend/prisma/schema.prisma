@@ -222,6 +222,8 @@ model BorrowTransaction {
   fineAmount Float?            @default(0) @map("fine_amount")
   finePaid   Boolean           @default(false) @map("fine_paid")
   notes      String?
+  qrCode     String?           @map("qr_code") /// Base64 PNG QR code for this transaction
+  qrScanned  Boolean           @default(false) @map("qr_scanned") /// Whether QR was scanned at return
   createdAt  DateTime          @default(now()) @map("created_at")
   updatedAt  DateTime          @updatedAt @map("updated_at")
 

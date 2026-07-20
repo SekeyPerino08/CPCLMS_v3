@@ -1,6 +1,6 @@
 # Smart Library Management System - Implementation Progress
 
-## ✅ Step 1: Create Prisma Schema (`backend/prisma/schema.prisma`)
+
 - [x] Create enums (Role, BookStatus, RequestStatus, TransactionStatus, ReservationStatus)
 - [x] Create User model with all fields and relations
 - [x] Create Category model with self-relation
@@ -50,4 +50,26 @@
 - [x] Zod validation for all auth inputs
 - [x] authLimiter (10 req/15min) on sensitive endpoints
 - [x] env.ts updated with JWT_REFRESH_SECRET/EXPIRES_IN
+
+## ✅ Step 8: RESTful CRUD APIs — Books, E-Books, Categories
+- [x] Book CRUD with search/title/author/isbn filters, pagination, status/book location tracking
+- [x] E-Book CRUD with format metadata, file URL, category relation
+- [x] Category CRUD with parent-child hierarchy, book/e-book counts
+- [x] Zod validation for create/update
+- [x] Auth guards: Public read, LIBRARIAN write
+- [x] Prisma Re-generate (contains qrCode/qrScanned fields)
+
+## ✅ Step 9: Core Business Logic APIs
+- [x] Borrow Request (max 3 STUDENT / 10 FACULTY / configurable via policy)
+- [x] Faculty period selection (7d/14d/30d via dueDate override)
+- [x] Librarian approve/reject with QR code generation (qrcode library)
+- [x] Return workflow: QR scan OR transaction ID OR accessionNo lookup
+- [x] Overdue fine calculation (FINE_PER_DAY policy)
+- [x] Reservation queue: create, cancel, auto-recalculate positions
+- [x] Auto-notify next in queue on return
+- [x] Pay fine endpoint
+- [x] Overdue check (batch/cron endpoint)
+- [x] ActivityLog for all operations
+- [x] Policy config endpoints (GET/PUT/DELETE per key, LIBRARIAN-only)
+- [x] All endpoints have Zod validation
 
