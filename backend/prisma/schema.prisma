@@ -1,0 +1,321 @@
+// ============================================================
+// Smart Library Management System - Prisma Schema
+// Database: PostgreSQL (NeonDB)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  STUDENT
+  FACULTY
+  LIBRARIAN
+}
+
+enum BookStatus {
+  AVAILABLE
+  BORROWED
+  RESERVED
+  MAINTENANCE
+  LOST
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum TransactionStatus {
+  ACTIVE
+  RETURNED
+  OVERDUE
+}
+
+enum ReservationStatus {
+  ACTIVE
+  FULFILLED
+  CANCELLED
+  EXPIRED
+}
+
+enum NotificationType {
+  BORROW_CONFIRMATION
+  DUE_REMINDER
+  OVERDUE_FINE
+  RESERVATION_AVAILABLE
+  RESERVATION_CANCELLED
+  REQUEST_APPROVED
+  REQUEST_REJECTED
+  SYSTEM
+}
+
+enum EBookFormat {
+  PDF
+  EPUB
+  MOBI
+}
+
+// ============================================================
+// MODELS
+// ============================================================
+
+/// Registered users of the library system (students, faculty, librarians)
+model User {
+  id            String   @id @default(cuid())
+  libraryId     String   @unique @map("library_id") /// Auto-generated library card number (e.g., LIB-2024-0001)
+  firstName     String   @map("first_name")
+  lastName      String   @map("last_name")
+  email         String   @unique
+  password      String
+  role          Role     @default(STUDENT)
+  department    String?
+  yearSection  String?  @map("year_section") /// e.g., "3-BSIT" — relevant for students
+  phone         String?
+  avatar        String?
+  isActive      Boolean  @default(true) @map("is_active")
+  maxBorrowDays Int?     @map("max_borrow_days") /// Per-user override (overrides policy)
+  maxBooksAllowed Int?   @map("max_books_allowed") /// Per-user override
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  borrowRequests      BorrowRequest[]
+  borrowTransactions  BorrowTransaction[]
+  reservations        Reservation[]
+  notifications       Notification[]
+  activityLogs        ActivityLog[]
+  processedBorrowRequests BorrowRequest[] @relation("ProcessedBy")
+  refreshTokens       RefreshToken[]
+
+  @@map("users")
+}
+
+/// Book categories with optional parent-child hierarchy
+model Category {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  slug        String     @unique
+  parentId    String?    @map("parent_id")
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  books  Book[]
+  eBooks EBook[]
+
+  @@map("categories")
+}
+
+/// Physical books in the library inventory
+model Book {
+  id              String     @id @default(cuid())
+  isbn            String     @map("isbn")
+  accessionNo     String     @unique @map("accession_no") /// Unique accession number for each physical copy
+  title           String
+  author          String
+  publisher       String?
+  publishYear     Int?       @map("publish_year")
+  edition         String?
+  pages           Int?
+  categoryId      String?    @map("category_id")
+  category        Category?  @relation(fields: [categoryId], references: [id])
+  description     String?
+  coverImage      String?    @map("cover_image")
+  language        String     @default("English")
+  shelf           String?    /// Location: shelf identifier
+  row             String?    /// Location: row identifier
+  copies          Int        @default(1) /// Total copies of this title
+  availableCopies Int        @default(1) @map("available_copies") /// Copies currently available for borrowing
+  status          BookStatus @default(AVAILABLE)
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  borrowRequests     BorrowRequest[]
+  borrowTransactions BorrowTransaction[]
+  reservations       Reservation[]
+
+  @@index([isbn])
+  @@index([title])
+  @@index([author])
+  @@index([status])
+  @@index([categoryId])
+  @@map("books")
+}
+
+/// Digital / electronic books
+model EBook {
+  id          String     @id @default(cuid())
+  isbn        String     @map("isbn")
+  title       String
+  author      String
+  publisher   String?
+  publishYear Int?       @map("publish_year")
+  edition     String?
+  categoryId  String?    @map("category_id")
+  category    Category?  @relation(fields: [categoryId], references: [id])
+  description String?
+  coverImage  String?    @map("cover_image")
+  language    String     @default("English")
+  fileUrl     String     @map("file_url")
+  fileSize    Int?       @map("file_size") /// Size in bytes
+  format      EBookFormat @default(PDF)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@index([isbn])
+  @@index([title])
+  @@index([author])
+  @@index([categoryId])
+  @@map("ebooks")
+}
+
+/// Requests to borrow a physical book (initiated by user)
+model BorrowRequest {
+  id            String        @id @default(cuid())
+  userId        String        @map("user_id")
+  user          User          @relation(fields: [userId], references: [id])
+  bookId        String        @map("book_id")
+  book          Book          @relation(fields: [bookId], references: [id])
+  requestDate   DateTime      @default(now()) @map("request_date")
+  status        RequestStatus @default(PENDING)
+  notes         String?
+  processedById String?       @map("processed_by_id")
+  processedBy   User?         @relation("ProcessedBy", fields: [processedById], references: [id])
+  processedAt   DateTime?     @map("processed_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([bookId])
+  @@index([status])
+  @@index([requestDate])
+  @@map("borrow_requests")
+}
+
+/// Active and historical borrowing transactions
+model BorrowTransaction {
+  id         String            @id @default(cuid())
+  userId     String            @map("user_id")
+  user       User              @relation(fields: [userId], references: [id])
+  bookId     String            @map("book_id")
+  book       Book              @relation(fields: [bookId], references: [id])
+  borrowDate DateTime          @default(now()) @map("borrow_date")
+  dueDate    DateTime          @map("due_date")
+  returnDate DateTime?         @map("return_date")
+  status     TransactionStatus @default(ACTIVE)
+  fineAmount Float?            @default(0) @map("fine_amount")
+  finePaid   Boolean           @default(false) @map("fine_paid")
+  notes      String?
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([bookId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([borrowDate])
+  @@map("borrow_transactions")
+}
+
+/// Reservations for books that are currently borrowed/unavailable
+model Reservation {
+  id            String            @id @default(cuid())
+  userId        String            @map("user_id")
+  user          User              @relation(fields: [userId], references: [id])
+  bookId        String            @map("book_id")
+  book          Book              @relation(fields: [bookId], references: [id])
+  reservationDate DateTime        @default(now()) @map("reservation_date")
+  expiryDate    DateTime          @map("expiry_date")
+  status        ReservationStatus @default(ACTIVE)
+  queuePosition Int               @map("queue_position") /// Position in the reservation queue
+  notified      Boolean           @default(false) /// Whether user has been notified about availability
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([bookId])
+  @@index([status])
+  @@index([reservationDate])
+  @@unique([userId, bookId, status], name: "unique_active_reservation") /// One active reservation per user per book
+  @@map("reservations")
+}
+
+/// Audit trail for all system activities
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String   /// e.g., "BORROW", "RETURN", "CREATE_USER", "UPDATE_BOOK"
+  entity    String   /// e.g., "BorrowTransaction", "User", "Book"
+  entityId  String?  @map("entity_id")
+  details   Json?    /// Flexible payload for additional context
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+/// In-app notifications for users
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  message   String?
+  isRead    Boolean          @default(false) @map("is_read")
+  link      String?          /// Optional deep link (e.g., /transactions/xxx)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+/// Stored refresh tokens for JWT authentication
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+/// Configurable system policies and settings
+model Policy {
+  id          String   @id @default(cuid())
+  key         String   @unique /// e.g., "MAX_BORROW_DAYS", "MAX_BOOKS_PER_USER", "FINE_PER_DAY"
+  value       String   /// Stored as string, parsed by application logic
+  description String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("policies")
+}
+
