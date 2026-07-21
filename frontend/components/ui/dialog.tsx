@@ -22,6 +22,7 @@ export function Dialog(props: {
         </button>
         {props.children}
       </div>
+    </div>
   );
 }
 

@@ -72,6 +72,7 @@ export default function BooksPage() {
             <Button variant={tab === "physical" ? "primary" : "outline"} size="sm" onClick={() => setTab("physical")}>Physical</Button>
             <Button variant={tab === "ebooks" ? "primary" : "outline"} size="sm" onClick={() => setTab("ebooks")}>E-Books</Button>
           </div>
+        </div>
 
         {successMsg && <div className="p-4 mb-4 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">Success: {successMsg}</div>}
         {error && <div className="p-4 mb-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{error}</div>}
@@ -95,6 +96,7 @@ export default function BooksPage() {
                 <button onClick={() => setView("grid")} className={`p-2 rounded-md ${view === "grid" ? "bg-white shadow-sm" : ""}`}>Grid</button>
                 <button onClick={() => setView("list")} className={`p-2 rounded-md ${view === "list" ? "bg-white shadow-sm" : ""}`}>List</button>
               </div>
+            </div>
           </CardContent>
         </Card>
 
