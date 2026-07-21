@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import api from "@/lib/api";
 
 export function BookBorrowModal(props: {
   open: boolean;
@@ -19,12 +20,19 @@ export function BookBorrowModal(props: {
     setError("");
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 800));
-      props.onSuccess();
-      props.onOpenChange(false);
-      setNotes("");
-    } catch {
-      setError("Network error. Please try again.");
+      const res = await api.createBorrowRequest({
+        bookId: props.book.id,
+        notes: notes || undefined,
+      });
+      if (res.success) {
+        props.onSuccess();
+        props.onOpenChange(false);
+        setNotes("");
+      } else {
+        setError(res.error || "Failed to submit request. Please try again.");
+      }
+    } catch (err: any) {
+      setError(err?.message || "Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -44,6 +52,7 @@ export function BookBorrowModal(props: {
             <p className="font-medium text-zinc-800 text-sm truncate">{props.book.title}</p>
             <p className="text-xs text-zinc-500 truncate">{props.book.author} · {props.book.accessionNo}</p>
           </div>
+        </div>
       </div>
 
       {error && (

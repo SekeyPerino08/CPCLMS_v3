@@ -26,6 +26,30 @@ export const metadata: Metadata = {
     "books",
     "catalog",
   ],
+  manifest: "/manifest.json",
+  themeColor: "#059669",
+  appleWebApp: {
+    capable: true,
+    title: "CPC Library",
+    statusBarStyle: "default",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
+  icons: [
+    { rel: "icon", url: "/favicon.ico", sizes: "48x48" },
+    { rel: "apple-touch-icon", url: "/icons/icon-192x192.png", sizes: "192x192" },
+    { rel: "apple-touch-icon", url: "/icons/icon-512x512.png", sizes: "512x512" },
+  ],
+  openGraph: {
+    title: "CPC Library",
+    description: "Smart Library Management System for Colegio de Porta Coeli",
+    type: "website",
+    locale: "en_PH",
+  },
 };
 
 export default function RootLayout({
