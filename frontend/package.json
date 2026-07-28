@@ -9,12 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@types/react-pdf": "^6.2.0",
+    "@types/react-pdf": "^5.0.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.25.0",
-    "next": "16.2.10",
+    "next": "^16.2.12",
     "pdfjs-dist": "^6.1.200",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -27,8 +27,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint": "^10.8.0",
+    "eslint-config-next": "^0.2.4",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
