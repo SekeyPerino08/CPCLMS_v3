@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth-context";
+import Navbar from "@/components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,6 +26,30 @@ export const metadata: Metadata = {
     "books",
     "catalog",
   ],
+  manifest: "/manifest.json",
+  themeColor: "#059669",
+  appleWebApp: {
+    capable: true,
+    title: "CPC Library",
+    statusBarStyle: "default",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
+  icons: [
+    { rel: "icon", url: "/favicon.ico", sizes: "48x48" },
+    { rel: "apple-touch-icon", url: "/icons/icon-192x192.png", sizes: "192x192" },
+    { rel: "apple-touch-icon", url: "/icons/icon-512x512.png", sizes: "512x512" },
+  ],
+  openGraph: {
+    title: "CPC Library",
+    description: "Smart Library Management System for Colegio de Porta Coeli",
+    type: "website",
+    locale: "en_PH",
+  },
 };
 
 export default function RootLayout({
@@ -36,7 +62,13 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-zinc-50">
+        <AuthProvider>
+          <Navbar />
+          <main className="flex-1">{children}</main>
+        </AuthProvider>
+      </body>
     </html>
   );
 }
+

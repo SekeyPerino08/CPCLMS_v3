@@ -12,9 +12,6 @@ import { AuthenticatedRequest } from '../types';
 // Borrow Requests
 // ============================================================
 
-/**
- * POST /api/requests
- */
 export const createBorrowRequest = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
     const { bookId, notes } = req.body;
@@ -27,16 +24,10 @@ export const createBorrowRequest = asyncHandler(
   }
 );
 
-/**
- * GET /api/requests
- */
 export const listBorrowRequests = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    // Students/faculty see only their own requests; librarians see all
     const userId =
-      req.user!.role === 'LIBRARIAN'
-        ? undefined
-        : req.user!.userId;
+      req.user!.role === 'LIBRARIAN' ? undefined : req.user!.userId;
     const { requests, meta } = await transactionService.listBorrowRequests(
       req.query as Record<string, unknown>,
       userId
@@ -45,29 +36,26 @@ export const listBorrowRequests = asyncHandler(
   }
 );
 
-/**
- * PUT /api/requests/:id/approve
- */
 export const approveRequest = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    const transaction = await transactionService.approveRequest(
+    const dueDateOverride = req.body.dueDate ? new Date(req.body.dueDate) : undefined;
+    const result = await transactionService.approveRequest(
       req.params.id,
-      req.user!.userId
+      req.user!.userId,
+      dueDateOverride
     );
-    sendSuccess(res, transaction, 'Borrow request approved');
+    sendSuccess(res, result, 'Borrow request approved');
   }
 );
 
-/**
- * PUT /api/requests/:id/reject
- */
 export const rejectRequest = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    await transactionService.rejectRequest(
-      req.params.id,
-      req.user!.userId,
-      req.body.reason
-    );
+    const { reason } = req.body;
+    if (!reason) {
+      res.status(400).json({ success: false, error: 'Rejection reason is required' });
+      return;
+    }
+    await transactionService.rejectRequest(req.params.id, req.user!.userId, reason);
     sendSuccess(res, null, 'Borrow request rejected');
   }
 );
@@ -76,15 +64,10 @@ export const rejectRequest = asyncHandler(
 // Borrow Transactions
 // ============================================================
 
-/**
- * GET /api/transactions
- */
 export const listTransactions = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
     const userId =
-      req.user!.role === 'LIBRARIAN'
-        ? undefined
-        : req.user!.userId;
+      req.user!.role === 'LIBRARIAN' ? undefined : req.user!.userId;
     const { transactions, meta } = await transactionService.listTransactions(
       req.query as Record<string, unknown>,
       userId
@@ -93,21 +76,39 @@ export const listTransactions = asyncHandler(
   }
 );
 
-/**
- * PUT /api/transactions/:id/return
- */
+export const getTransaction = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const transaction = await transactionService.getTransaction(req.params.id);
+    sendSuccess(res, transaction);
+  }
+);
+
 export const returnBook = asyncHandler(async (req: Request, res: Response) => {
-  const transaction = await transactionService.returnBook(req.params.id);
+  const { qrCode } = req.body;
+  const identifier = qrCode || req.params.id;
+  const transaction = await transactionService.returnBook(identifier);
   sendSuccess(res, transaction, 'Book returned successfully');
 });
+
+export const payFine = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { amount } = req.body;
+    const transaction = await transactionService.payFine(req.params.id, amount);
+    sendSuccess(res, transaction, 'Fine paid successfully');
+  }
+);
+
+export const checkOverdue = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const result = await transactionService.checkOverdueTransactions();
+    sendSuccess(res, result, 'Overdue check completed');
+  }
+);
 
 // ============================================================
 // Reservations
 // ============================================================
 
-/**
- * POST /api/reservations
- */
 export const reserveBook = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
     const { bookId } = req.body;
@@ -119,16 +120,28 @@ export const reserveBook = asyncHandler(
   }
 );
 
-/**
- * PUT /api/reservations/:id/cancel
- */
 export const cancelReservation = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    await transactionService.cancelReservation(
-      req.params.id,
-      req.user!.userId
-    );
+    await transactionService.cancelReservation(req.params.id, req.user!.userId);
     sendSuccess(res, null, 'Reservation cancelled');
   }
 );
 
+export const listReservations = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const userId =
+      req.user!.role === 'LIBRARIAN' ? undefined : req.user!.userId;
+    const { reservations, meta } = await transactionService.listReservations(
+      req.query as Record<string, unknown>,
+      userId
+    );
+    sendSuccess(res, reservations, undefined, 200, meta);
+  }
+);
+
+export const getMyActiveCount = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const count = await transactionService.getUserActiveCount(req.user!.userId);
+    sendSuccess(res, { activeCount: count });
+  }
+);
