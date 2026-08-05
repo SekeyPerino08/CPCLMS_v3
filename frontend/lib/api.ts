@@ -146,16 +146,13 @@ async register(data: {
     yearSection?: string;
     phone?: string;
   }): Promise<ApiResponse<any>> {
-    const response = await this.request<any>('/auth/register', {
+const response = await this.request<any>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
 
-    if (response.success && response.data) {
-      this.setTokens(response.data.accessToken, response.data.refreshToken);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-    }
-
+    // Do NOT store tokens after registration. The user must log in
+    // manually with their new credentials on the login page.
     return response;
   }
 
@@ -179,9 +176,16 @@ async register(data: {
     });
   }
 
-  async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  async patch<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
     });
   }

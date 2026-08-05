@@ -9,18 +9,18 @@ import {
   Search,
   Pencil,
   Trash2,
-  BookOpen,
+  Users,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
-  Coins,
+Phone,
 } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
-export default function RequestsPage() {
+export default function MembersPage() {
   const { user } = useAuth();
-  const [records, setRecords] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
+  const [finesMap, setFinesMap] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,77 +40,68 @@ export default function RequestsPage() {
         limit: String(PAGE_SIZE),
       };
       if (search) params.search = search;
-      if (statusFilter) params.status = statusFilter;
+      if (statusFilter) params.isActive = statusFilter === "active" ? "true" : "false";
 
-      const res = await api.get<any>(`/transactions?${new URLSearchParams(params).toString()}`);
-      if (res.success) {
-        setRecords((res.data as any[]) || []);
-        setTotal(res.meta?.total ?? ((res.data as any[]) || []).length);
+const [usersRes, statsRes] = await Promise.all([
+        api.get<any>("/auth/users?" + new URLSearchParams(params).toString()),
+        api.getDashboardStats(),
+      ]);
+
+      if (usersRes.success) {
+        setMembers((usersRes.data as any[]) || []);
+        setTotal(usersRes.meta?.total ?? ((usersRes.data as any[]) || []).length);
+      }
+
+      if (statsRes.success && statsRes.data?.overdueByUser) {
+        const map: Record<string, number> = {};
+        for (const o of statsRes.data.overdueByUser) {
+          map[o.userId] = o.totalFine ?? 0;
+        }
+        setFinesMap(map);
       }
     } catch {
-      setError("Failed to load records");
+      setError("Failed to load members");
     } finally {
       setLoading(false);
     }
   }, [search, statusFilter, currentPage]);
 
   useEffect(() => {
+    if (user && user.role !== "LIBRARIAN") {
+      // non-librarians shouldn't manage members
+      window.location.href = "/student/dashboard";
+      return;
+    }
     loadData();
-  }, [loadData]);
+  }, [user, loadData]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [search, statusFilter]);
 
-  const handleReturn = async (record: any) => {
-    if (!window.confirm(`Mark "${record.book?.title}" as returned?`)) return;
+const handleDelete = async (member: any) => {
+    if (!window.confirm(`Delete member "${member.firstName} ${member.lastName}"? This action cannot be undone.`)) return;
     try {
-      const res = await api.returnBook(record.id);
+      const res = await api.delete(`/auth/users/${member.id}`);
       if (res.success) {
-        setSuccessMsg("Book marked as returned");
+        setSuccessMsg("Member deleted successfully");
         loadData();
         setTimeout(() => setSuccessMsg(""), 4000);
       } else {
-        setError(res.error || "Failed to mark returned");
+        setError(res.error || "Failed to delete member");
       }
     } catch {
-      setError("Failed to mark returned");
+      setError("Failed to delete member");
     }
   };
 
-  const handleCollectFine = async (record: any) => {
-    const amount = record.fineAmount ?? 0;
-    if (!window.confirm(`Collect fine of ₱${amount.toFixed(2)}?`)) return;
-    try {
-      const res = await api.payFine(record.id, amount);
-      if (res.success) {
-        setSuccessMsg("Fine collected successfully");
-        loadData();
-        setTimeout(() => setSuccessMsg(""), 4000);
-      } else {
-        setError(res.error || "Failed to collect fine");
-      }
-    } catch {
-      setError("Failed to collect fine");
-    }
-  };
-
+  const getFullName = (m: any) => `${m?.firstName || ""} ${m?.lastName || ""}`.trim() || "—";
   const formatDate = (d?: string) =>
     d ? new Date(d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—";
-
-  const statusBadge: Record<string, string> = {
-    ACTIVE: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
-    OVERDUE: "bg-red-500/15 text-red-400 ring-red-500/30",
-    RETURNED: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
-  };
-
-  const statusLabel: Record<string, string> = {
-    ACTIVE: "Borrowed",
-    OVERDUE: "Overdue",
-    RETURNED: "Returned",
-  };
+  const formatPhone = (p?: string) => p || "—";
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   const getPageNumbers = () => {
     const pages: number[] = [];
     for (let i = 1; i <= totalPages; i++) pages.push(i);
@@ -136,15 +127,15 @@ export default function RequestsPage() {
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-white">Borrow Records</h1>
+              <h1 className="text-2xl font-bold text-white">Members</h1>
               <p className="text-sm text-zinc-400 mt-1">
-                Track book borrowing and returns ({total} total)
+                Manage library members ({total} total)
               </p>
             </div>
             {isLibrarian && (
               <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-colors">
                 <Plus className="w-4 h-4" />
-                New Record
+                Add Member
               </button>
             )}
           </div>
@@ -160,7 +151,7 @@ export default function RequestsPage() {
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by book or member..."
+                  placeholder="Search by name or email..."
                   className="w-full pl-10 pr-3 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 />
               </div>
@@ -170,9 +161,8 @@ export default function RequestsPage() {
                 className="px-3 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none"
               >
                 <option value="" className="bg-zinc-900 text-white">All Status</option>
-                <option value="ACTIVE" className="bg-zinc-900 text-white">Borrowed</option>
-                <option value="OVERDUE" className="bg-zinc-900 text-white">Overdue</option>
-                <option value="RETURNED" className="bg-zinc-900 text-white">Returned</option>
+                <option value="active" className="bg-zinc-900 text-white">Active</option>
+                <option value="inactive" className="bg-zinc-900 text-white">Inactive</option>
               </select>
             </div>
           </div>
@@ -187,78 +177,78 @@ export default function RequestsPage() {
           )}
 
           {/* Empty state */}
-          {!loading && records.length === 0 && (
+          {!loading && members.length === 0 && (
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 flex flex-col items-center justify-center py-20 text-center">
-              <BookOpen className="w-12 h-12 text-zinc-600 mb-4" />
-              <p className="text-zinc-300 font-medium">No records found</p>
+              <Users className="w-12 h-12 text-zinc-600 mb-4" />
+              <p className="text-zinc-300 font-medium">No members found</p>
               <p className="text-sm text-zinc-500 mt-1">
-                {search || statusFilter ? "Try adjusting your search or filters" : "Borrow records will appear here"}
+                {search || statusFilter ? "Try adjusting your search or filters" : "Add a member to get started"}
               </p>
             </div>
           )}
 
           {/* Table */}
-          {!loading && records.length > 0 && (
+          {!loading && members.length > 0 && (
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-zinc-900 text-left text-xs uppercase tracking-wide text-zinc-500">
-                      <th className="px-6 py-3 font-medium">Book</th>
-                      <th className="px-6 py-3 font-medium hidden md:table-cell">Member</th>
-                      <th className="px-6 py-3 font-medium hidden sm:table-cell">Borrow Date</th>
-                      <th className="px-6 py-3 font-medium hidden sm:table-cell">Due Date</th>
-                      <th className="px-6 py-3 font-medium hidden lg:table-cell">Return Date</th>
+                      <th className="px-6 py-3 font-medium">Name</th>
+                      <th className="px-6 py-3 font-medium hidden md:table-cell">Email</th>
+                      <th className="px-6 py-3 font-medium hidden lg:table-cell">Phone</th>
+                      <th className="px-6 py-3 font-medium hidden sm:table-cell">Join Date</th>
+                      <th className="px-6 py-3 font-medium">Fines</th>
                       <th className="px-6 py-3 font-medium">Status</th>
-                      <th className="px-6 py-3 font-medium">Fine</th>
                       <th className="px-6 py-3 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {records.map((txn: any) => (
-                      <tr key={txn.id} className="border-t border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
+                    {members.map((m: any) => (
+                      <tr key={m.id} className="border-t border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
                         <td className="px-6 py-4">
-                          <p className="text-zinc-100 font-medium">{txn.book?.title || "Unknown"}</p>
-                          <p className="text-xs text-zinc-500">{txn.book?.accessionNo || ""}</p>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-blue-500/15 text-blue-300 flex items-center justify-center font-semibold text-xs shrink-0">
+                              {m.firstName?.charAt(0)}{m.lastName?.charAt(0)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-zinc-100 font-medium truncate">{getFullName(m)}</p>
+                              <p className="text-xs text-zinc-500">{m.libraryId || ""}</p>
+                            </div>
+                          </div>
                         </td>
-                        <td className="px-6 py-4 text-zinc-300 hidden md:table-cell">
-                          {txn.user?.firstName} {txn.user?.lastName}
+                        <td className="px-6 py-4 text-zinc-300 hidden md:table-cell">{m.email || "—"}</td>
+                        <td className="px-6 py-4 text-zinc-400 hidden lg:table-cell">
+                          <span className="inline-flex items-center gap-1.5">
+                            <Phone className="w-3.5 h-3.5 text-zinc-600" />
+                            {formatPhone(m.phone)}
+                          </span>
                         </td>
-                        <td className="px-6 py-4 text-zinc-400 hidden sm:table-cell">{formatDate(txn.borrowDate)}</td>
-                        <td className="px-6 py-4 text-zinc-400 hidden sm:table-cell">{formatDate(txn.dueDate)}</td>
-                        <td className="px-6 py-4 text-zinc-400 hidden lg:table-cell">{formatDate(txn.returnDate)}</td>
+                        <td className="px-6 py-4 text-zinc-400 hidden sm:table-cell">{formatDate(m.createdAt)}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${statusBadge[txn.status] || "bg-zinc-500/15 text-zinc-400 ring-zinc-500/30"}`}>
-                            {statusLabel[txn.status] || txn.status}
+                          <span className={`font-medium ${finesMap[m.id] > 0 ? "text-amber-400" : "text-zinc-400"}`}>
+                            ₱ {(finesMap[m.id] ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`font-medium ${txn.fineAmount > 0 ? "text-amber-400" : "text-zinc-500"}`}>
-                            {txn.fineAmount ? `₱${txn.fineAmount.toFixed(2)}` : "—"}
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
+                            m.isActive
+                              ? "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30"
+                              : "bg-red-500/15 text-red-400 ring-red-500/30"
+                          }`}>
+                            {m.isActive ? "Active" : "Inactive"}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="inline-flex items-center gap-1.5">
-                            {isLibrarian && txn.status !== "RETURNED" && (
-                              <button
-                                onClick={() => handleReturn(txn)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Mark Returned
-                              </button>
-                            )}
-                            {isLibrarian && txn.status === "OVERDUE" && !txn.finePaid && txn.fineAmount > 0 && (
-                              <button
-                                onClick={() => handleCollectFine(txn)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-red-500/15 hover:bg-red-500/25 text-red-400 text-xs font-medium rounded-lg transition-colors"
-                              >
-                                <Coins className="w-3.5 h-3.5" /> Collect Fine
-                              </button>
-                            )}
+                          <div className="inline-flex items-center gap-1">
                             <button className="p-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors" aria-label="Edit">
                               <Pencil className="w-4 h-4" />
                             </button>
-                            <button className="p-2 rounded-lg text-zinc-400 hover:bg-red-500/10 hover:text-red-400 transition-colors" aria-label="Delete">
+                            <button
+                              onClick={() => handleDelete(m)}
+                              className="p-2 rounded-lg text-zinc-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                              aria-label="Delete"
+                            >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
@@ -272,7 +262,7 @@ export default function RequestsPage() {
           )}
 
           {/* Pagination */}
-          {!loading && records.length > 0 && (
+          {!loading && members.length > 0 && (
             <div className="flex items-center justify-between mt-6">
               <p className="text-sm text-zinc-500">
                 Showing{" "}
@@ -280,7 +270,7 @@ export default function RequestsPage() {
                   {(currentPage - 1) * PAGE_SIZE + 1}–
                   {Math.min(currentPage * PAGE_SIZE, total)}
                 </span>{" "}
-                of <span className="text-zinc-300">{total}</span> records
+                of <span className="text-zinc-300">{total}</span> members
               </p>
               <div className="flex items-center gap-1">
                 <button

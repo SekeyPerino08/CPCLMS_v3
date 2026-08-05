@@ -430,11 +430,24 @@ export class TransactionService {
   /**
    * List transactions with filters
    */
-  async listTransactions(query: Record<string, unknown>, userId?: string) {
+async listTransactions(query: Record<string, unknown>, userId?: string) {
     const { page, limit, skip, take } = getPaginationParams(query);
     const where: any = {};
     if (userId) where.userId = userId;
     if (query.status) where.status = query.status;
+
+    // Search by book title/accession no OR member name/library id
+    if (query.search) {
+      const s = query.search as string;
+      where.OR = [
+        { book: { title: { contains: s, mode: 'insensitive' } } },
+        { book: { accessionNo: { contains: s, mode: 'insensitive' } } },
+        { book: { author: { contains: s, mode: 'insensitive' } } },
+        { user: { firstName: { contains: s, mode: 'insensitive' } } },
+        { user: { lastName: { contains: s, mode: 'insensitive' } } },
+        { user: { libraryId: { contains: s, mode: 'insensitive' } } },
+      ];
+    }
 
     // Filter by date range
     if (query.fromDate) {

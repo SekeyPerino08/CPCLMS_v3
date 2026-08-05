@@ -91,6 +91,14 @@ export const listUsers = asyncHandler(async (req: AuthenticatedRequest, res: Res
 });
 
 /**
+ * DELETE /api/auth/users/:id  (LIBRARIAN only)
+ */
+export const deleteUser = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const user = await authService.deleteUser(req.params.id, req.user!.userId);
+  sendSuccess(res, user, 'User deleted successfully');
+});
+
+/**
  * PATCH /api/auth/users/:id/toggle-status  (LIBRARIAN only)
  */
 export const toggleUserStatus = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

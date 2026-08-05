@@ -349,9 +349,33 @@ const user = await prisma.user.create({
     };
   }
 
-  // ────────────────────────────────────────
+// ────────────────────────────────────────
   //  TOGGLE USER ACTIVE STATUS (admin)
   // ────────────────────────────────────────
+  async deleteUser(targetUserId: string, adminId: string) {
+    if (targetUserId === adminId) {
+      throw new BadRequestError('You cannot delete your own account');
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!user) throw new NotFoundError('User');
+
+    // Delete related records in a single transaction
+    await prisma.$transaction([
+      prisma.refreshToken.deleteMany({ where: { userId: targetUserId } }),
+      prisma.activityLog.deleteMany({ where: { userId: targetUserId } }),
+      prisma.notification.deleteMany({ where: { userId: targetUserId } }),
+      prisma.borrowRequest.deleteMany({ where: { userId: targetUserId } }),
+      prisma.borrowRequest.deleteMany({ where: { processedById: targetUserId } }),
+      prisma.borrowTransaction.deleteMany({ where: { userId: targetUserId } }),
+      prisma.reservation.deleteMany({ where: { userId: targetUserId } }),
+      prisma.user.delete({ where: { id: targetUserId } }),
+    ]);
+
+    await this.logActivity(adminId, 'DELETE_USER', 'User', targetUserId);
+    return { id: targetUserId };
+  }
+
   async toggleUserStatus(targetUserId: string, adminId: string) {
     if (targetUserId === adminId) {
       throw new BadRequestError('You cannot deactivate your own account');

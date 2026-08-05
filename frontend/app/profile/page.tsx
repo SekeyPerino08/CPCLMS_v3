@@ -1,293 +1,290 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/badge";
-import api from "@/lib/api";
+import Sidebar from "@/components/Sidebar";
+import {
+  Pencil,
+  Lock,
+  Bell,
+  Palette,
+  ShieldCheck,
+  Mail,
+  Phone,
+  Building2,
+  GraduationCap,
+  IdCard,
+  User as UserIcon,
+  Check,
+} from "lucide-react";
 
-const formatDate = (dateStr?: string) => {
-  if (!dateStr) return "N/A";
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const roleLabel = (role?: string) => {
+  if (role === "LIBRARIAN") return "Librarian";
+  if (role === "FACULTY") return "Faculty";
+  return "Student";
 };
 
-function TransactionList({
-  transactions,
-}: {
-  transactions: any[];
-}) {
-  if (transactions.length === 0) {
-    return (
-      <p className="text-sm text-zinc-400 text-center py-8">
-        No borrowing history
-      </p>
-    );
-  }
-  return (
-    <div className="space-y-2">
-      {transactions.map((tx) => {
-        return (
-          <div
-            key={tx.id}
-            className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg"
-          >
-            <div>
-              <p className="text-sm font-medium text-zinc-800">
-                {tx.book?.title || "Unknown"}
-              </p>
-              <p className="text-xs text-zinc-400">
-                Borrowed: {formatDate(tx.borrowDate)}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <StatusBadge status={tx.status} />
-              {tx.fineAmount > 0 && (
-                <span className="text-xs text-red-500">
-                  Php {tx.fineAmount}
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+const roleBadge = (role?: string) => {
+  if (role === "LIBRARIAN")
+    return "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30";
+  if (role === "FACULTY")
+    return "bg-violet-500/15 text-violet-400 ring-violet-500/30";
+  return "bg-blue-500/15 text-blue-400 ring-blue-500/30";
+};
 
-function ReservationList({
-  reservations,
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
 }: {
-  reservations: any[];
+  icon: any;
+  label: string;
+  value?: string | null;
 }) {
-  if (reservations.length === 0) {
-    return (
-      <p className="text-sm text-zinc-400 text-center py-8">
-        No active reservations
-      </p>
-    );
-  }
   return (
-    <div className="space-y-2">
-      {reservations.map((res) => {
-        return (
-          <div
-            key={res.id}
-            className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg"
-          >
-            <div>
-              <p className="text-sm font-medium text-zinc-800">
-                {res.book?.title || "Unknown"}
-              </p>
-              <p className="text-xs text-zinc-400">
-                Reserved: {formatDate(res.reservationDate)}
-              </p>
-            </div>
-            <StatusBadge status={res.status} />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function NotificationList({
-  notifications,
-}: {
-  notifications: any[];
-}) {
-  if (notifications.length === 0) {
-    return (
-      <p className="text-sm text-zinc-400 text-center py-8">
-        No notifications
-      </p>
-    );
-  }
-  return (
-    <div className="space-y-2">
-      {notifications.map((n) => {
-        return (
-          <div
-            key={n.id}
-            className={
-              "p-3 rounded-lg text-sm " +
-              (n.isRead
-                ? "bg-zinc-50"
-                : "bg-emerald-50 border border-emerald-200")
-            }
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-medium text-zinc-800">{n.title}</p>
-                {n.message && (
-                  <p className="text-xs text-zinc-500">{n.message}</p>
-                )}
-              </div>
-              {!n.isRead && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-              )}
-            </div>
-            <p className="text-xs text-zinc-400 mt-1">
-              {formatDate(n.createdAt)}
-            </p>
-          </div>
-        );
-      })}
+    <div className="flex items-start gap-3 py-3">
+      <div className="w-9 h-9 rounded-xl bg-zinc-800 flex items-center justify-center text-blue-400 shrink-0">
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-zinc-500">{label}</p>
+        <p className="text-sm font-medium text-zinc-100 truncate">
+          {value || "N/A"}
+        </p>
+      </div>
     </div>
   );
 }
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [reservations, setReservations] = useState<any[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("transactions");
+const [editing, setEditing] = useState(false);
+  const [notifications, setNotifications] = useState(true);
 
-  const role = user?.role || "STUDENT";
   const initials =
     (user?.firstName?.charAt(0) || "U") +
     (user?.lastName?.charAt(0) || "");
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [txRes, resRes, notifRes] = await Promise.all([
-          api.getTransactions(),
-          api.getReservations(),
-          api.getNotifications(),
-        ]);
-        if (txRes.success && txRes.data) setTransactions(txRes.data);
-        if (resRes.success && resRes.data) setReservations(resRes.data);
-        if (notifRes.success && notifRes.data)
-          setNotifications(notifRes.data);
-      } catch {
-        // silent
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
-  const tabs = [
-    { key: "transactions", label: "Borrowed" },
-    { key: "reservations", label: "Reserved" },
-    { key: "notifications", label: "Notifications" },
-  ];
+  const role = user?.role || "STUDENT";
 
   return (
     <ProtectedRoute>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div>
-            <Card>
-              <CardContent className="p-6 text-center">
-                <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-2xl font-bold text-emerald-700 mx-auto mb-4">
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex">
+        <Sidebar />
+
+        <div className="flex-1 min-w-0">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Page Header */}
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-white">My Profile</h1>
+              <p className="text-sm text-zinc-400 mt-1">
+                View and manage your account information
+              </p>
+            </div>
+
+            {/* Profile Header Card */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6 sm:p-8 mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-2xl font-bold text-white shadow-lg shadow-blue-600/30 shrink-0">
                   {initials.toUpperCase()}
                 </div>
-                <h2 className="text-lg font-semibold text-zinc-800">
-                  {user?.firstName} {user?.lastName}
-                </h2>
-                <p className="text-sm text-zinc-500">{user?.email}</p>
-                <p className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                  {role === "LIBRARIAN"
-                    ? "Librarian"
-                    : role === "FACULTY"
-                    ? "Faculty"
-                    : "Student"}
-                </p>
-                <div className="mt-6 space-y-2 text-sm text-left">
-                  <div className="flex justify-between py-2 border-b border-zinc-100">
-                    <span className="text-zinc-500">Library ID</span>
-                    <span className="font-mono text-zinc-800">
-                      {user?.libraryId || "N/A"}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center flex-wrap gap-3">
+                    <h2 className="text-xl font-bold text-white">
+                      {user?.firstName} {user?.lastName}
+                    </h2>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${roleBadge(role)}`}
+                    >
+                      {roleLabel(role)}
                     </span>
                   </div>
-                  <div className="flex justify-between py-2 border-b border-zinc-100">
-                    <span className="text-zinc-500">Department</span>
-                    <span className="text-zinc-800">
-                      {user?.department || "N/A"}
-                    </span>
-                  </div>
-                  {role === "STUDENT" && (
-                    <div className="flex justify-between py-2 border-b border-zinc-100">
-                      <span className="text-zinc-500">Year/Section</span>
-                      <span className="text-zinc-800">
-                        {user?.yearSection || "N/A"}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between py-2 border-b border-zinc-100">
-                    <span className="text-zinc-500">Phone</span>
-                    <span className="text-zinc-800">
-                      {user?.phone || "N/A"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-zinc-500">Member Since</span>
-                    <span className="text-zinc-800">
-                      {formatDate(user?.createdAt)}
-                    </span>
-                  </div>
+                  <p className="text-sm text-zinc-400 mt-1 flex items-center gap-1.5">
+                    <IdCard className="w-3.5 h-3.5" />
+                    {user?.libraryId || "N/A"}
+                  </p>
+                  <p className="text-sm text-zinc-400 mt-0.5 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5" />
+                    {user?.email || "N/A"}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+                <button
+                  onClick={() => setEditing((e) => !e)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-colors self-start sm:self-center"
+                >
+                  <Pencil className="w-4 h-4" />
+                  {editing ? "Done" : "Edit"}
+                </button>
+              </div>
+            </div>
 
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>My Activity</CardTitle>
-                  <div className="flex gap-1 p-1 bg-zinc-100 rounded-lg">
-                    {tabs.map((t) => (
-                      <button
-                        key={t.key}
-                        onClick={() => setTab(t.key)}
-                        className={
-                          "px-3 py-1.5 rounded-md text-xs font-medium " +
-                          (tab === t.key
-                            ? "bg-white shadow-sm text-zinc-800"
-                            : "text-zinc-500")
-                        }
-                      >
-                        {t.label}
-                      </button>
-                    ))}
+            {/* Two-column layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Personal Information */}
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                <div className="px-6 py-5 border-b border-zinc-800">
+                  <h3 className="text-base font-semibold text-white">
+                    Personal Information
+                  </h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Your account details
+                  </p>
+                </div>
+                <div className="px-6 py-2 divide-y divide-zinc-800/60">
+                  <InfoRow
+                    icon={UserIcon}
+                    label="Full Name"
+                    value={`${user?.firstName} ${user?.lastName}`}
+                  />
+                  <InfoRow icon={IdCard} label="ID Number" value={user?.libraryId} />
+                  <InfoRow icon={Mail} label="Email" value={user?.email} />
+                  <InfoRow icon={Phone} label="Phone Number" value={user?.phone} />
+                  <InfoRow
+                    icon={Building2}
+                    label="Department"
+                    value={user?.department}
+                  />
+                  {role === "STUDENT" && (
+                    <InfoRow
+                      icon={GraduationCap}
+                      label="Year & Section"
+                      value={user?.yearSection}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Account Settings */}
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                <div className="px-6 py-5 border-b border-zinc-800">
+                  <h3 className="text-base font-semibold text-white">
+                    Account Settings
+                  </h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Security and preferences
+                  </p>
+                </div>
+
+                <div className="px-6 py-2 divide-y divide-zinc-800/60">
+                  {/* Change Password */}
+                  <button className="w-full flex items-center gap-3 py-3.5 text-left group">
+                    <div className="w-9 h-9 rounded-xl bg-zinc-800 flex items-center justify-center text-blue-400 shrink-0 group-hover:bg-blue-500/10 transition-colors">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-100">
+                        Change Password
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        Update your password to keep your account secure
+                      </p>
+                    </div>
+                    <ChevronIcon />
+                  </button>
+
+                  {/* Notification Preferences */}
+                  <button
+                    onClick={() => setNotifications((n) => !n)}
+                    className="w-full flex items-center gap-3 py-3.5 text-left group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-zinc-800 flex items-center justify-center text-blue-400 shrink-0 group-hover:bg-blue-500/10 transition-colors">
+                      <Bell className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-100">
+                        Notification Preferences
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        Borrow due alerts and updates
+                      </p>
+                    </div>
+                    <Toggle checked={notifications} onChange={setNotifications} />
+                  </button>
+
+                  {/* Theme Preference */}
+                  <div className="flex items-center gap-3 py-3.5">
+                    <div className="w-9 h-9 rounded-xl bg-zinc-800 flex items-center justify-center text-blue-400 shrink-0">
+                      <Palette className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-100">
+                        Theme Preference
+                      </p>
+                      <p className="text-xs text-zinc-500">Dark mode (default)</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/30">
+                      <Check className="w-3 h-3" />
+                      Dark
+                    </span>
+                  </div>
+
+                  {/* Account Status */}
+                  <div className="flex items-center gap-3 py-3.5">
+                    <div className="w-9 h-9 rounded-xl bg-zinc-800 flex items-center justify-center text-blue-400 shrink-0">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-zinc-100">
+                        Account Status
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        Your account is active and in good standing
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Active
+                    </span>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {loading && (
-                  <div className="space-y-3">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="h-16 bg-zinc-100 rounded-lg animate-pulse"
-                      />
-                    ))}
-                  </div>
-                )}
-                {!loading && tab === "transactions" && (
-                  <TransactionList transactions={transactions} />
-                )}
-                {!loading && tab === "reservations" && (
-                  <ReservationList reservations={reservations} />
-                )}
-                {!loading && tab === "notifications" && (
-                  <NotificationList notifications={notifications} />
-                )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </ProtectedRoute>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg
+      className="w-4 h-4 text-zinc-500 shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.25 4.5l7.5 7.5-7.5 7.5"
+      />
+    </svg>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${
+        checked ? "bg-blue-600" : "bg-zinc-700"
+      }`}
+      aria-pressed={checked}
+    >
+      <div
+        className={`w-5 h-5 rounded-full bg-white transition-transform ${
+          checked ? "translate-x-5" : "translate-x-0"
+        }`}
+      />
+    </button>
   );
 }

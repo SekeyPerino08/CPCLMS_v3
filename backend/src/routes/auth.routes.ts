@@ -54,6 +54,12 @@ router.patch(
   authorize('LIBRARIAN'),
   authController.toggleUserStatus
 );
+router.delete(
+  '/users/:id',
+  authenticate,
+  authorize('LIBRARIAN'),
+  authController.deleteUser
+);
 
 export default router;
 

@@ -72,11 +72,12 @@ const res = await api.login(identifier, password);
     }
   };
 
-  const register = async (data: RegisterData) => {
+const register = async (data: RegisterData) => {
     try {
       const res = await api.register(data);
-      if (res.success && res.data) {
-        setUser(res.data.user);
+      if (res.success) {
+        // Do NOT auto-login after registration.
+        // The user is redirected to the login page to sign in manually.
         return { success: true };
       }
       return { success: false, error: res.error || 'Registration failed' };
