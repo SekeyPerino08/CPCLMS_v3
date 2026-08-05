@@ -12,9 +12,9 @@ import { AuthenticatedRequest } from '../types';
  * POST /api/auth/login
  */
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { identifier, password } = req.body;
   const ipAddress = req.ip;
-  const result = await authService.login(email, password, ipAddress);
+  const result = await authService.login(identifier, password, ipAddress);
   sendSuccess(res, result, 'Login successful');
 });
 

@@ -8,7 +8,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+login: (identifier: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -17,6 +17,7 @@ interface AuthContextType {
 interface RegisterData {
   firstName: string;
   lastName: string;
+  libraryId: string;
   email: string;
   password: string;
   role?: string;
@@ -58,12 +59,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     init();
   }, [refreshUser]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (identifier: string, password: string) => {
     try {
-      const res = await api.login(email, password);
+const res = await api.login(identifier, password);
       if (res.success && res.data) {
         setUser(res.data.user);
-        return { success: true };
+        return { success: true, user: res.data.user };
       }
       return { success: false, error: res.error || 'Login failed' };
     } catch (err: any) {

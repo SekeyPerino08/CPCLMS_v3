@@ -13,8 +13,9 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const navLinks = [
-    { href: '/dashboard', label: 'Dashboard', roles: ['LIBRARIAN', 'FACULTY', 'STUDENT'] },
+const navLinks = [
+    { href: '/dashboard', label: 'Dashboard', roles: ['LIBRARIAN'] },
+    { href: '/student/dashboard', label: 'Dashboard', roles: ['FACULTY', 'STUDENT'] },
     { href: '/books', label: 'Books', roles: ['LIBRARIAN', 'FACULTY', 'STUDENT'] },
     { href: '/ebooks', label: 'E-Books', roles: ['LIBRARIAN', 'FACULTY', 'STUDENT'] },
     { href: '/transactions', label: 'Transactions', roles: ['LIBRARIAN', 'FACULTY', 'STUDENT'] },
@@ -42,7 +43,7 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           {/* Left side */}
           <div className="flex items-center">
-            <Link href="/dashboard" className="flex items-center gap-2">
+<Link href={user?.role === 'LIBRARIAN' ? '/dashboard' : '/student/dashboard'} className="flex items-center gap-2">
               <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">CPC</span>
               </div>

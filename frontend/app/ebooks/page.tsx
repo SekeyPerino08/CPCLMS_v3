@@ -39,6 +39,7 @@ export default function EBooksPage() {
             <h1 className="text-2xl font-bold text-zinc-800">E-Books</h1>
             <p className="text-zinc-500 mt-1">Digital books available for reading</p>
           </div>
+        </div>
       </div>
     </ProtectedRoute>
   );

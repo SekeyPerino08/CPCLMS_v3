@@ -52,6 +52,7 @@ export default function EBookReaderPage({ params }: { params: Promise<{ id: stri
             <p className="text-zinc-500 mb-4">{error || "E-book not available"}</p>
             <button onClick={() => router.back()} className="text-emerald-600 hover:underline">Go Back</button>
           </div>
+        </div>
       </ProtectedRoute>
     );
   }

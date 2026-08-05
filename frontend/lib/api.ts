@@ -118,12 +118,12 @@ class ApiClient {
     }
   }
 
-  async login(email: string, password: string): Promise<ApiResponse<{ user: any; accessToken: string; refreshToken: string }>> {
+  async login(identifier: string, password: string): Promise<ApiResponse<{ user: any; accessToken: string; refreshToken: string }>> {
     const response = await this.request<{ user: any; accessToken: string; refreshToken: string }>(
       '/auth/login',
       {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier, password }),
       }
     );
 
@@ -135,9 +135,10 @@ class ApiClient {
     return response;
   }
 
-  async register(data: {
+async register(data: {
     firstName: string;
     lastName: string;
+    libraryId: string;
     email: string;
     password: string;
     role?: string;
