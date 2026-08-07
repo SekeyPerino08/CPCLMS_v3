@@ -11,6 +11,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/dashboard', authorize('LIBRARIAN'), analyticsController.getDashboardStats);
+router.get('/my-dashboard', analyticsController.getMyDashboardStats);
 router.get('/monthly-trends', authorize('LIBRARIAN'), analyticsController.getMonthlyTrends);
 router.get('/category-distribution', analyticsController.getCategoryDistribution);
 

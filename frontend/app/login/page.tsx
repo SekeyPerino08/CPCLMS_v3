@@ -71,9 +71,9 @@ const { login, user, isAuthenticated, loading } = useAuth();
             <div className="relative z-10 flex flex-col gap-8">
               <div className="flex items-center gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/CPClogo.png" alt="Cordova Public College Logo" className="w-12 h-12 object-contain shrink-0" />
+<img src="/CPClogo.png" alt="Cordova Public College Logo" className="w-12 h-12 object-contain shrink-0" />
                 <div>
-                  <p className="font-bold text-lg leading-tight">Cordova Public College</p>
+                  <p className="font-bold text-lg leading-tight text-white">Cordova Public College</p>
                   <p className="text-blue-200 text-sm">Library Management System</p>
                 </div>
               </div>

@@ -22,52 +22,85 @@ export class TransactionService {
   // ============================================================
 
   /**
-   * Create a borrow request
+   * Maximum number of books allowed per transaction / request.
+   */
+  static readonly MAX_BOOKS_PER_TRANSACTION = 3;
+
+  /**
+   * Create borrow request(s)
+   * - Enforces a maximum of 3 books per transaction.
    * - STUDENT: max 3 active books
    * - FACULTY: uses FACULTY_MAX_BOOKS policy (default 10)
    * - LIBRARIAN: no limit
+   *
+   * Accepts either a single `bookId` (backward compatible) or an
+   * array `bookIds` for multi-book transactions.
    */
-  async createBorrowRequest(userId: string, bookId: string, notes?: string) {
+  async createBorrowRequest(input: {
+    userId: string;
+    bookIds: string[];
+    notes?: string;
+  }) {
+    const { userId, bookIds, notes } = input;
+    const uniqueBookIds = Array.from(new Set(bookIds));
+
+    // Enforce per-transaction limit of 3 books
+    if (uniqueBookIds.length > TransactionService.MAX_BOOKS_PER_TRANSACTION) {
+      throw new BadRequestError(
+        'You can only borrow a maximum of 3 books per transaction.'
+      );
+    }
+
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundError('User');
-
-    const book = await prisma.book.findUnique({ where: { id: bookId } });
-    if (!book) throw new NotFoundError('Book');
 
     if (!user.isActive) {
       throw new BadRequestError('Your account is deactivated. Contact a librarian.');
     }
 
-    if (book.status === 'LOST') {
-      throw new BadRequestError('This book is marked as lost and cannot be borrowed');
+    // Validate each book and check availability
+    const books = await prisma.book.findMany({
+      where: { id: { in: uniqueBookIds } },
+    });
+    if (books.length !== uniqueBookIds.length) {
+      throw new NotFoundError('One or more books');
     }
 
-    if (book.status === 'MAINTENANCE') {
-      throw new BadRequestError('This book is under maintenance');
+    for (const book of books) {
+      if (book.status === 'LOST') {
+        throw new BadRequestError(`"${book.title}" is marked as lost and cannot be borrowed`);
+      }
+      if (book.status === 'MAINTENANCE') {
+        throw new BadRequestError(`"${book.title}" is under maintenance`);
+      }
+      if (book.availableCopies < 1) {
+        throw new BadRequestError(
+          `No copies of "${book.title}" are currently available. You can reserve it instead.`
+        );
+      }
     }
 
-    if (book.availableCopies < 1) {
-      throw new BadRequestError('No copies currently available. You can reserve it instead.');
-    }
-
-    // Check existing pending/active request for same book
-    const existingRequest = await prisma.borrowRequest.findFirst({
+    // Check existing pending/approved requests for these books
+    const existingRequests = await prisma.borrowRequest.findMany({
       where: {
         userId,
-        bookId,
+        bookId: { in: uniqueBookIds },
         status: { in: ['PENDING', 'APPROVED'] },
       },
     });
-    if (existingRequest) {
-      throw new ConflictError('You already have a pending or approved request for this book');
+    if (existingRequests.length > 0) {
+      const titles = existingRequests.map((r) => r.bookId).join(', ');
+      throw new ConflictError(
+        `You already have a pending or approved request for one of these books (${titles}).`
+      );
     }
 
-    // Check existing active transaction for same book
+    // Check existing active transactions for these books
     const existingActive = await prisma.borrowTransaction.findFirst({
-      where: { userId, bookId, status: 'ACTIVE' },
+      where: { userId, bookId: { in: uniqueBookIds }, status: 'ACTIVE' },
     });
     if (existingActive) {
-      throw new ConflictError('You already have this book borrowed');
+      throw new ConflictError('You already have one of these books borrowed');
     }
 
     // Enforce max books limit based on role
@@ -84,32 +117,39 @@ export class TransactionService {
       maxBooks = 999; // Librarians have no practical limit
     }
 
-    if (activeCount >= maxBooks) {
+    if (activeCount + uniqueBookIds.length > maxBooks) {
       throw new BadRequestError(
         `You have reached the maximum limit of ${maxBooks} active borrows. Return a book first.`
       );
     }
 
-    const request = await prisma.borrowRequest.create({
-      data: { userId, bookId, notes },
-      include: {
-        book: { select: { title: true, author: true, accessionNo: true, isbn: true } },
-        user: { select: { firstName: true, lastName: true, libraryId: true, role: true } },
-      },
-    });
+    // Create a request per book
+    const created: any[] = [];
+    for (const bookId of uniqueBookIds) {
+      const book = books.find((b) => b.id === bookId)!;
+      const request = await prisma.borrowRequest.create({
+        data: { userId, bookId, notes },
+        include: {
+          book: { select: { id: true, title: true, author: true, accessionNo: true, isbn: true } },
+          user: { select: { firstName: true, lastName: true, libraryId: true, role: true } },
+        },
+      });
 
-    // Activity log
-    await prisma.activityLog.create({
-      data: {
-        userId,
-        action: 'BORROW_REQUEST',
-        entity: 'BorrowRequest',
-        entityId: request.id,
-        details: { bookTitle: book.title, bookId },
-      },
-    });
+      // Activity log
+      await prisma.activityLog.create({
+        data: {
+          userId,
+          action: 'BORROW_REQUEST',
+          entity: 'BorrowRequest',
+          entityId: request.id,
+          details: { bookTitle: book.title, bookId },
+        },
+      });
 
-    return request;
+      created.push(request);
+    }
+
+    return uniqueBookIds.length === 1 ? created[0] : created;
   }
 
   /**
@@ -272,11 +312,24 @@ export class TransactionService {
   /**
    * List borrow requests (with filters)
    */
-  async listBorrowRequests(query: Record<string, unknown>, userId?: string) {
+async listBorrowRequests(query: Record<string, unknown>, userId?: string) {
     const { page, limit, skip, take } = getPaginationParams(query);
     const where: any = {};
     if (userId) where.userId = userId;
     if (query.status) where.status = query.status;
+
+    // Search by book title/accession no OR member name/library id
+    if (query.search) {
+      const s = query.search as string;
+      where.OR = [
+        { book: { title: { contains: s, mode: 'insensitive' } } },
+        { book: { accessionNo: { contains: s, mode: 'insensitive' } } },
+        { book: { author: { contains: s, mode: 'insensitive' } } },
+        { user: { firstName: { contains: s, mode: 'insensitive' } } },
+        { user: { lastName: { contains: s, mode: 'insensitive' } } },
+        { user: { libraryId: { contains: s, mode: 'insensitive' } } },
+      ];
+    }
 
     const [requests, total] = await Promise.all([
       prisma.borrowRequest.findMany({
@@ -423,6 +476,73 @@ export class TransactionService {
         },
       });
     }
+
+    return updated;
+  }
+
+/**
+   * Declare a book as missing (librarian only)
+   * - Marks the book as LOST
+   * - Closes the active transaction (no return)
+   * - Records an activity log
+   * - Notifies the borrower
+   */
+  async declareMissing(transactionId: string, librarianId: string, reason?: string) {
+    const transaction = await prisma.borrowTransaction.findUnique({
+      where: { id: transactionId },
+      include: { book: true, user: { select: { id: true, firstName: true, lastName: true } } },
+    });
+    if (!transaction) throw new NotFoundError('Transaction');
+    if (transaction.returnDate) throw new BadRequestError('Book already returned');
+
+    const now = new Date();
+    const isOverdue = now > transaction.dueDate;
+    const fineAmount =
+      (isOverdue ? transaction.fineAmount ?? 0 : 0) || 0;
+
+    const [updated] = await prisma.$transaction([
+      prisma.borrowTransaction.update({
+        where: { id: transaction.id },
+        data: {
+          returnDate: now,
+          status: isOverdue ? 'OVERDUE' : 'RETURNED',
+          fineAmount,
+          qrScanned: true,
+          notes: reason ? `${transaction.notes ? transaction.notes + ' ' : ''}Declared missing: ${reason}`.trim() : (transaction.notes || undefined),
+        },
+        include: {
+          book: { select: { title: true, accessionNo: true, isbn: true } },
+          user: { select: { id: true, firstName: true, lastName: true, libraryId: true } },
+        },
+      }),
+      prisma.book.update({
+        where: { id: transaction.bookId },
+        data: { availableCopies: 0, status: 'LOST' },
+      }),
+      prisma.activityLog.create({
+        data: {
+          userId: librarianId,
+          action: 'DECLARE_MISSING',
+          entity: 'BorrowTransaction',
+          entityId: transaction.id,
+          details: {
+            bookTitle: transaction.book.title,
+            accessionNo: transaction.book.accessionNo,
+            borrower: `${transaction.user.firstName} ${transaction.user.lastName}`,
+            reason: reason || null,
+          },
+        },
+      }),
+      prisma.notification.create({
+        data: {
+          userId: transaction.userId,
+          type: 'SYSTEM',
+          title: 'Book Declared Missing',
+          message: `The book "${transaction.book.title}" you borrowed has been declared missing. Please contact the library.`,
+          link: `/transactions/${transaction.id}`,
+        },
+      }),
+    ]);
 
     return updated;
   }

@@ -191,6 +191,44 @@ interface TopBookRaw { bookId: string; _count: { bookId: number } }
     };
   }
 
+/**
+   * Get dashboard statistics for a specific member (Student/Faculty)
+   * - Currently Borrowed: active + overdue (not yet returned)
+   * - Pending Requests: borrow requests with PENDING status
+   * - Active Reservations: reservations with ACTIVE status
+   * - Overdue Fines: total unpaid fines (in peso)
+   */
+  async getMyDashboardStats(userId: string) {
+    const [myBorrowed, myPendingRequests, myReservations, overdueTxns] =
+      await Promise.all([
+        prisma.borrowTransaction.count({
+          where: { userId, status: { in: ['ACTIVE', 'OVERDUE'] } },
+        }),
+        prisma.borrowRequest.count({
+          where: { userId, status: 'PENDING' },
+        }),
+        prisma.reservation.count({
+          where: { userId, status: 'ACTIVE' },
+        }),
+        prisma.borrowTransaction.findMany({
+          where: { userId, status: 'OVERDUE', finePaid: false },
+          select: { fineAmount: true },
+        }),
+      ]);
+
+    const myFines = overdueTxns.reduce(
+      (sum, txn) => sum + (txn.fineAmount || 0),
+      0
+    );
+
+    return {
+      myBorrowed,
+      myPendingRequests,
+      myReservations,
+      myFines,
+    };
+  }
+
   /**
    * Get monthly borrow trends for charts
    */

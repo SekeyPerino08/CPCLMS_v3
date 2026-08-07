@@ -7,11 +7,11 @@ export function Dialog(props: {
   onOpenChange: (v: boolean) => void;
   children: React.ReactNode;
 }) {
-  if (!props.open) return null;
+if (!props.open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" onClick={() => props.onOpenChange(false)} />
-      <div className="relative z-50 w-full max-w-lg rounded-xl bg-white p-6 shadow-lg max-h-[85vh] overflow-y-auto">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => props.onOpenChange(false)} />
+      <div className="relative z-50 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/50 max-h-[85vh] overflow-y-auto">
         <button
           onClick={() => props.onOpenChange(false)}
           className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none z-10"
@@ -31,9 +31,9 @@ export function DialogHeader(props: { className?: string; children: React.ReactN
 }
 
 export function DialogTitle(props: { className?: string; children: React.ReactNode }) {
-  return <h2 className={`text-lg font-semibold text-zinc-800 ${props.className || ""}`}>{props.children}</h2>;
+  return <h2 className={`text-lg font-semibold text-white ${props.className || ""}`}>{props.children}</h2>;
 }
 
 export function DialogDescription(props: { className?: string; children: React.ReactNode }) {
-  return <p className={`text-sm text-zinc-500 ${props.className || ""}`}>{props.children}</p>;
+  return <p className={`text-sm text-zinc-400 ${props.className || ""}`}>{props.children}</p>;
 }

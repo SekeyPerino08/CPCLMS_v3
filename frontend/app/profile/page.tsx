@@ -183,10 +183,10 @@ const [editing, setEditing] = useState(false);
                     <ChevronIcon />
                   </button>
 
-                  {/* Notification Preferences */}
-                  <button
+{/* Notification Preferences */}
+                  <div
                     onClick={() => setNotifications((n) => !n)}
-                    className="w-full flex items-center gap-3 py-3.5 text-left group"
+                    className="w-full flex items-center gap-3 py-3.5 text-left group cursor-pointer"
                   >
                     <div className="w-9 h-9 rounded-xl bg-zinc-800 flex items-center justify-center text-blue-400 shrink-0 group-hover:bg-blue-500/10 transition-colors">
                       <Bell className="w-4 h-4" />
@@ -200,7 +200,7 @@ const [editing, setEditing] = useState(false);
                       </p>
                     </div>
                     <Toggle checked={notifications} onChange={setNotifications} />
-                  </button>
+                  </div>
 
                   {/* Theme Preference */}
                   <div className="flex items-center gap-3 py-3.5">

@@ -16,10 +16,16 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
-ImageIcon,
+  ImageIcon,
+  ShoppingCart,
+  X,
+  Check,
+  Send,
 } from "lucide-react";
 
 const PAGE_SIZE = 8;
+const MAX_BOOKS_PER_TRANSACTION = 3;
+const MAX_LIMIT_MESSAGE = "You can only borrow a maximum of 3 books per transaction.";
 
 export default function BooksPage() {
   const { user } = useAuth();
@@ -32,7 +38,7 @@ export default function BooksPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedBook, setSelectedBook] = useState<any>(null);
+  const [cart, setCart] = useState<any[]>([]);
   const [showBorrowModal, setShowBorrowModal] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -67,17 +73,45 @@ export default function BooksPage() {
     setCurrentPage(1);
   }, [search, categoryFilter, books.length]);
 
-  const handleBorrow = (book: any) => {
+  const inCart = (id: string) => cart.some((b) => b.id === id);
+
+  const handleAddToCart = (book: any) => {
     if (!user) {
       router.push("/login");
       return;
     }
-    setSelectedBook(book);
+    if (inCart(book.id)) {
+      setCart((prev) => prev.filter((b) => b.id !== book.id));
+      return;
+    }
+    if (cart.length >= MAX_BOOKS_PER_TRANSACTION) {
+      setError(MAX_LIMIT_MESSAGE);
+      return;
+    }
+    setError("");
+    setCart((prev) => [...prev, book]);
+  };
+
+  const handleRemoveFromCart = (id: string) => {
+    setCart((prev) => prev.filter((b) => b.id !== id));
+  };
+
+  const handleBorrowNow = () => {
+    if (cart.length === 0) {
+      setError("Please select at least one book to borrow.");
+      return;
+    }
+    if (cart.length > MAX_BOOKS_PER_TRANSACTION) {
+      setError(MAX_LIMIT_MESSAGE);
+      return;
+    }
+    setError("");
     setShowBorrowModal(true);
   };
 
   const handleBorrowSuccess = () => {
     setSuccessMsg("Borrow request submitted successfully!");
+    setCart([]);
     loadData();
     setTimeout(() => setSuccessMsg(""), 4000);
   };
@@ -116,11 +150,11 @@ export default function BooksPage() {
     </div>
   );
 
-return (
+  return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex">
       <Sidebar />
-      <div className="flex-1 min-w-0">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div className="flex-1 min-w-0">
+      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${!isLibrarian && cart.length > 0 ? "pb-44" : ""}`}>
         {successMsg && (
           <div className="p-4 mb-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-sm text-emerald-400">
             {successMsg}
@@ -229,6 +263,11 @@ return (
                     ) : (
                       fallbackCover
                     )}
+                    {!isLibrarian && inCart(book.id) && (
+                      <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    )}
                   </div>
                   <div className="p-4">
                     <h3 className="font-semibold text-white line-clamp-2 leading-snug">{book.title}</h3>
@@ -262,11 +301,19 @@ return (
                         </>
                       ) : (
                         <button
-                          onClick={() => handleBorrow(book)}
+                          onClick={() => handleAddToCart(book)}
                           disabled={(book.availableCopies ?? 0) <= 0}
-                          className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors shadow-lg shadow-blue-600/20"
+                          className={`flex-1 px-3 py-2 text-white text-sm font-semibold rounded-lg transition-colors ${
+                            inCart(book.id)
+                              ? "bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20"
+                              : "bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20"
+                          } disabled:opacity-40 disabled:cursor-not-allowed`}
                         >
-                          {(book.availableCopies ?? 0) > 0 ? "Borrow" : "Unavailable"}
+                          {(book.availableCopies ?? 0) <= 0
+                            ? "Unavailable"
+                            : inCart(book.id)
+                              ? "Remove"
+                              : "Add to Cart"}
                         </button>
                       )}
                     </div>
@@ -343,11 +390,15 @@ return (
                           </div>
                         ) : (
                           <button
-                            onClick={() => handleBorrow(book)}
+                            onClick={() => handleAddToCart(book)}
                             disabled={(book.availableCopies ?? 0) <= 0}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
+                            className={`px-3 py-1.5 text-white text-xs font-semibold rounded-lg transition-colors ${
+                              inCart(book.id)
+                                ? "bg-emerald-600 hover:bg-emerald-700"
+                                : "bg-blue-600 hover:bg-blue-700"
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
                           >
-                            Borrow
+                            {(book.availableCopies ?? 0) <= 0 ? "Unavailable" : inCart(book.id) ? "Remove" : "Add to Cart"}
                           </button>
                         )}
                       </td>
@@ -404,11 +455,64 @@ return (
           </div>
         )}
 
-{selectedBook && (
+        {/* Borrow Cart Bar */}
+        {!isLibrarian && cart.length > 0 && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-3xl z-50">
+            <div className="rounded-2xl border border-zinc-700 bg-zinc-900/95 backdrop-blur shadow-2xl shadow-black/50 p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center shrink-0">
+                  <ShoppingCart className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white">
+                    {cart.length}/3 books selected
+                  </p>
+                  <p className="text-xs text-zinc-500">You can borrow up to 3 books per transaction.</p>
+                </div>
+                <button
+                  onClick={() => setCart([])}
+                  className="text-xs text-zinc-400 hover:text-white transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {cart.map((b) => (
+                  <span
+                    key={b.id}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-200"
+                  >
+                    <span className="max-w-[160px] truncate">{b.title}</span>
+                    <button
+                      onClick={() => handleRemoveFromCart(b.id)}
+                      className="text-zinc-400 hover:text-red-400 transition-colors"
+                      aria-label={`Remove ${b.title}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleBorrowNow}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-blue-600/30"
+                >
+                  <Send className="w-4 h-4" />
+                  Send Borrow Request
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isLibrarian && cart.length > 0 && (
           <BookBorrowModal
             open={showBorrowModal}
             onOpenChange={setShowBorrowModal}
-            book={selectedBook}
+            books={cart}
             onSuccess={handleBorrowSuccess}
           />
         )}

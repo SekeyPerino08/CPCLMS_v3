@@ -6,12 +6,24 @@ import { z } from 'zod';
 
 /**
  * Create a borrow request
+ * - Supports a single `bookId` (backward compatible) OR an array `bookIds`.
+ * - Enforces a maximum of 3 books per transaction.
  */
 export const createBorrowRequestSchema = z.object({
-  body: z.object({
-    bookId: z.string().min(1, 'Book ID is required'),
-    notes: z.string().max(500).optional(),
-  }),
+  body: z
+    .object({
+      bookId: z.string().min(1, 'Book ID is required').optional(),
+      bookIds: z
+        .array(z.string().min(1, 'Book ID is required'))
+        .min(1, 'At least one book is required')
+        .max(3, 'You can only borrow a maximum of 3 books per transaction.')
+        .optional(),
+      notes: z.string().max(500).optional(),
+    })
+    .refine(
+      (body) => Boolean(body.bookId) || (Array.isArray(body.bookIds) && body.bookIds.length > 0),
+      { message: 'Book ID is required', path: ['bookId'] }
+    ),
 });
 
 /**

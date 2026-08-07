@@ -30,7 +30,8 @@ router.get('/my-count', transactionController.getMyActiveCount);
 // ── Transactions ─────────────────────────────────────────
 router.get('/', transactionController.listTransactions);
 router.get('/:id', transactionController.getTransaction);
-router.put('/:id/return', authorize('LIBRARIAN'), validate(returnBookSchema), transactionController.returnBook);
+router.put('/:id/return', validate(returnBookSchema), transactionController.returnBook);
+router.put('/:id/missing', authorize('LIBRARIAN'), transactionController.declareMissing);
 
 // ── Fine Payment ─────────────────────────────────────────
 router.put('/:id/pay-fine', authenticate, validate(payFineSchema), transactionController.payFine);

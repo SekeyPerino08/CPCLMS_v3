@@ -316,8 +316,8 @@ const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
             {/* Recent Borrow Activity */}
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
               <div className="px-6 py-5 border-b border-zinc-800 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-white">Recent Borrow Activity</h2>
-                <Link href="/transactions" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
+<h2 className="text-base font-semibold text-white">Recent Borrow Activity</h2>
+                <Link href="/requests" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
                   View all
                 </Link>
               </div>

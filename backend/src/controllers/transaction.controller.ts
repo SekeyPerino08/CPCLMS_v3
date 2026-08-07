@@ -14,12 +14,18 @@ import { AuthenticatedRequest } from '../types';
 
 export const createBorrowRequest = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    const { bookId, notes } = req.body;
-    const request = await transactionService.createBorrowRequest(
-      req.user!.userId,
-      bookId,
-      notes
-    );
+    const { bookIds, bookId, notes } = req.body;
+    // Accept either a single bookId (backward compatible) or an array of bookIds
+    const normalizedBookIds: string[] = Array.isArray(bookIds)
+      ? bookIds
+      : bookId
+        ? [bookId]
+        : [];
+    const request = await transactionService.createBorrowRequest({
+      userId: req.user!.userId,
+      bookIds: normalizedBookIds,
+      notes,
+    });
     sendSuccess(res, request, 'Borrow request submitted', 201);
   }
 );
@@ -89,6 +95,18 @@ export const returnBook = asyncHandler(async (req: Request, res: Response) => {
   const transaction = await transactionService.returnBook(identifier);
   sendSuccess(res, transaction, 'Book returned successfully');
 });
+
+export const declareMissing = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { reason } = req.body;
+    const transaction = await transactionService.declareMissing(
+      req.params.id,
+      req.user!.userId,
+      reason
+    );
+    sendSuccess(res, transaction, 'Book declared missing');
+  }
+);
 
 export const payFine = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {

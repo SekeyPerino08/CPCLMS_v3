@@ -215,8 +215,11 @@ async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
     return this.get(`/transactions${query}`);
   }
 
-  async createBorrowRequest(data: { bookId: string; notes?: string; dueDate?: string }): Promise<ApiResponse<any>> {
-    return this.post('/transactions/requests', data);
+async createBorrowRequest(data: {
+    bookIds: string[];
+    notes?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.post('/transactions/requests', { bookIds: data.bookIds, notes: data.notes });
   }
 
   async getBorrowRequests(params?: Record<string, string>): Promise<ApiResponse<any[]>> {
@@ -232,26 +235,16 @@ async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
     return this.put(`/transactions/requests/${id}/reject`, { reason });
   }
 
-  async returnBook(id: string, qrCode?: string): Promise<ApiResponse<any>> {
+async returnBook(id: string, qrCode?: string): Promise<ApiResponse<any>> {
     return this.put(`/transactions/${id}/return`, { qrCode });
   }
 
-  async payFine(id: string, amount: number): Promise<ApiResponse<any>> {
+  async declareMissing(id: string, reason?: string): Promise<ApiResponse<any>> {
+    return this.put(`/transactions/${id}/missing`, { reason });
+  }
+
+async payFine(id: string, amount: number): Promise<ApiResponse<any>> {
     return this.put(`/transactions/${id}/pay-fine`, { amount });
-  }
-
-  // Reservations
-  async createReservation(data: { bookId: string }): Promise<ApiResponse<any>> {
-    return this.post('/reservations', data);
-  }
-
-  async getReservations(params?: Record<string, string>): Promise<ApiResponse<any[]>> {
-    const query = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/reservations${query}`);
-  }
-
-  async cancelReservation(id: string): Promise<ApiResponse<any>> {
-    return this.put(`/reservations/${id}/cancel`);
   }
 
   // Notifications
@@ -272,9 +265,13 @@ async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
     return this.put('/notifications/mark-all-read');
   }
 
-  // Analytics
+// Analytics
   async getDashboardStats(): Promise<ApiResponse<any>> {
     return this.get('/analytics/dashboard');
+  }
+
+  async getMyDashboardStats(): Promise<ApiResponse<any>> {
+    return this.get('/analytics/my-dashboard');
   }
 
   async getMonthlyTrends(months?: number): Promise<ApiResponse<any>> {

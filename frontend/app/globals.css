@@ -2,8 +2,133 @@
 
 /* ============================================================
    Base Styles
-   - Dark mode is the default and only theme.
+   ------------------------------------------------------------
+   Dark mode is the default theme.
+   The app uses hardcoded dark utility classes (bg-zinc-950, etc.)
+   directly in JSX. To support Light mode, we remap those dark
+   classes to light equivalents when the <html> element carries
+   the `light` class (set by next-themes).
    ============================================================ */
+
+/* ---------- LIGHT MODE OVERRIDES ---------- */
+html.light {
+  color-scheme: light;
+}
+
+/* Page / app backgrounds */
+html.light body,
+html.light .bg-zinc-950 {
+  background-color: #f4f4f5 !important;
+}
+html.light .bg-zinc-900\/70 {
+  background-color: #ffffff !important;
+}
+html.light .bg-zinc-900 {
+  background-color: #fafafa !important;
+}
+html.light .bg-zinc-800,
+html.light .bg-zinc-800\/40,
+html.light .bg-zinc-800\/60 {
+  background-color: #f0f0f1 !important;
+}
+html.light .bg-zinc-700 {
+  background-color: #e4e4e7 !important;
+}
+
+/* Text colors */
+html.light .text-white,
+html.light .text-zinc-100 {
+  color: #18181b !important;
+}
+html.light .text-zinc-200 {
+  color: #27272a !important;
+}
+html.light .text-zinc-300 {
+  color: #3f3f46 !important;
+}
+html.light .text-zinc-400 {
+  color: #52525b !important;
+}
+html.light .text-zinc-500 {
+  color: #71717a !important;
+}
+html.light .text-zinc-600 {
+  color: #a1a1aa !important;
+}
+
+/* Borders */
+html.light .border-zinc-800,
+html.light .border-zinc-800\/60,
+html.light .border-zinc-700 {
+  border-color: #e4e4e7 !important;
+}
+
+/* Hover states */
+html.light .hover\:bg-zinc-800:hover,
+html.light .hover\:bg-zinc-700:hover,
+html.light .hover\:bg-zinc-800\/40:hover {
+  background-color: #e4e4e7 !important;
+}
+
+/* Sidebar */
+html.light aside,
+html.light aside .border-zinc-800 {
+  background-color: #ffffff !important;
+  border-color: #e4e4e7 !important;
+}
+
+/* Inputs */
+html.light input,
+html.light select {
+  background-color: #ffffff !important;
+  border-color: #e4e4e7 !important;
+  color: #18181b !important;
+}
+html.light input::placeholder {
+  color: #a1a1aa !important;
+}
+
+/* Tables */
+html.light table thead {
+  background-color: #fafafa !important;
+}
+html.light table tbody tr {
+  border-color: #e4e4e7 !important;
+}
+html.light table tbody tr:hover {
+  background-color: #f4f4f5 !important;
+}
+
+/* Loading skeletons */
+html.light .animate-pulse {
+  background-color: #e4e4e7 !important;
+}
+
+/* ---------- BRANDING CARD: keep dark in light mode ----------
+   The login/register left branding card always uses a dark blue
+   gradient background. The generic light-mode overrides above
+   would turn its white text dark (unreadable), so we restore the
+   correct light-on-dark colors within that card here. */
+html.light .from-slate-900 {
+  background-image: linear-gradient(to bottom, #0f172a, #172554, #1e3a8a) !important;
+}
+html.light .from-slate-900 .text-white,
+html.light .from-slate-900 span,
+html.light .from-slate-900 h1 {
+  color: #ffffff !important;
+}
+html.light .from-slate-900 .text-zinc-300 {
+  color: #d4d4d8 !important;
+}
+html.light .from-slate-900 .text-blue-200 {
+  color: #bfdbfe !important;
+}
+html.light .from-slate-900 .text-blue-50 {
+  color: #eff6ff !important;
+}
+html.light .from-slate-900 .text-blue-300 {
+  color: #93c5fd !important;
+}
 
 /* Scrollbar (optional, subtle) */
 ::-webkit-scrollbar {

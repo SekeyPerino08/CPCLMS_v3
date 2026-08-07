@@ -93,7 +93,7 @@ if (result.success) {
     <div className="min-h-screen bg-zinc-950 flex flex-col">
       <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
         <div className="w-full max-w-6xl grid md:grid-cols-2 gap-6">
-{/* ── Left Card: Dark branding ─────────────────────────── */}
+{/* ── Left Card: Dark branding (identical to Login) ─────── */}
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 via-blue-950 to-blue-900 text-white p-10 sm:p-12 flex flex-col justify-between shadow-[0_20px_60px_-15px_rgba(37,99,235,0.5)] ring-1 ring-white/10 min-h-[560px]">
             {/* Decorative glow */}
             <div className="absolute -top-32 -right-32 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl" />
@@ -102,26 +102,26 @@ if (result.success) {
             {/* Subtle grid pattern */}
             <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '28px 28px' }} />
 
-{/* Logo + Institution */}
-            <div className="relative z-10 flex items-center gap-3">
-              <div className="w-12 h-12 bg-white/90 backdrop-blur-md ring-1 ring-white/30 rounded-xl flex items-center justify-center overflow-hidden shadow-xl shadow-blue-900/40 shrink-0">
+            {/* Logo + Institution + Heading */}
+            <div className="relative z-10 flex flex-col gap-8">
+              <div className="flex items-center gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/CPClogo.png" alt="Cordova Public College Logo" className="w-10 h-10 object-contain" />
+<img src="/CPClogo.png" alt="Cordova Public College Logo" className="w-12 h-12 object-contain shrink-0" />
+                <div>
+                  <p className="font-bold text-lg leading-tight text-white">Cordova Public College</p>
+                  <p className="text-blue-200 text-sm">Library Management System</p>
+                </div>
               </div>
-              <div>
-                <p className="font-bold text-lg leading-tight">Cordova Public College</p>
-                <p className="text-blue-200 text-sm">Library Management System</p>
-              </div>
-            </div>
 
-            {/* Heading + Subtitle */}
-            <div className="relative z-10 max-w-md">
-              <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight tracking-tight text-white mb-4">
-                Join the <span className="text-blue-300">Knowledge</span> Community
-              </h1>
-              <p className="text-base sm:text-lg text-zinc-300 leading-relaxed">
-                Create your account to borrow books, track your requests, and access digital resources — all in one place.
-              </p>
+              {/* Heading + Subtitle */}
+              <div className="max-w-md">
+                <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight tracking-tight text-white mb-4">
+                  Welcome to <span className="text-blue-300">Knowledge</span>
+                </h1>
+                <p className="text-base sm:text-lg text-zinc-300 leading-relaxed">
+                  Sign in to manage books, track borrows, and keep your academic resources organized.
+                </p>
+              </div>
             </div>
 
             {/* Feature pills */}
@@ -129,18 +129,18 @@ if (result.success) {
               <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md ring-1 ring-white/15 rounded-full px-5 py-3 shadow-lg shadow-black/10">
                 <div className="w-8 h-8 bg-blue-400/30 rounded-full flex items-center justify-center shrink-0">
                   <svg className="w-4 h-4 text-blue-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                   </svg>
                 </div>
-                <span className="text-sm text-blue-50">Secure account creation with your school ID</span>
+                <span className="text-sm text-blue-50">Secure access with modern authentication UI</span>
               </div>
               <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md ring-1 ring-white/15 rounded-full px-5 py-3 shadow-lg shadow-black/10">
                 <div className="w-8 h-8 bg-blue-400/30 rounded-full flex items-center justify-center shrink-0">
                   <svg className="w-4 h-4 text-blue-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
-                <span className="text-sm text-blue-50">Access books, e-books, and library services</span>
+                <span className="text-sm text-blue-50">Minimal, professional design consistent with dashboards</span>
               </div>
             </div>
           </div>
@@ -225,55 +225,50 @@ if (result.success) {
                   </div>
                 </div>
 
-                {/* Email */}
+{/* Email + Phone Number */}
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-1.5">
-                    Email
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                    Contact Information
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        required
+                        value={formData.email}
+                        onChange={handleChange}
+                        className={inputClass}
+                        placeholder="Email"
+                      />
                     </div>
-<input
-                      id="email"
-                      name="email"
-                      type="email"
-                      required
-                      value={formData.email}
-                      onChange={handleChange}
-                      className={inputClass}
-                      placeholder="you@university.edu"
-                    />
-                  </div>
-                </div>
-
-                {/* Phone Number */}
-                <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-zinc-300 mb-1.5">
-                    Phone Number
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 5a2 2 0 012-2h.5a2 2 0 011.856 1.257l.994 2.486a2 2 0 01-.288 2.13l-.9 1.125a.5.5 0 01-.12.144A12.05 12.05 0 0014.88 16.96a.5.5 0 00.144-.12l1.125-.9a2 2 0 012.13-.288l2.486.994A2 2 0 0122 18.5v.5a2 2 0 01-2 2H19a16 16 0 01-16-16V5z" />
-                      </svg>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 5a2 2 0 012-2h.5a2 2 0 011.856 1.257l.994 2.486a2 2 0 01-.288 2.13l-.9 1.125a.5.5 0 01-.12.144A12.05 12.05 0 0014.88 16.96a.5.5 0 00.144-.12l1.125-.9a2 2 0 012.13-.288l2.486.994A2 2 0 0122 18.5v.5a2 2 0 01-2 2H19a16 16 0 01-16-16V5z" />
+                        </svg>
+                      </div>
+                      <input
+                        id="phone"
+                        name="phone"
+                        type="text"
+                        inputMode="tel"
+                        pattern="[0-9]*"
+                        value={formData.phone}
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/[^0-9]/g, '');
+                          setFormData((prev) => ({ ...prev, phone: digitsOnly }));
+                        }}
+                        className={inputClass}
+                        placeholder="Phone"
+                      />
                     </div>
-                    <input
-                      id="phone"
-                      name="phone"
-                      type="text"
-                      inputMode="tel"
-                      pattern="[0-9]*"
-                      value={formData.phone}
-                      onChange={(e) => {
-                        const digitsOnly = e.target.value.replace(/[^0-9]/g, '');
-                        setFormData((prev) => ({ ...prev, phone: digitsOnly }));
-                      }}
-                      className={inputClass}
-                      placeholder="e.g. 09123456789"
-                    />
                   </div>
                 </div>
 
@@ -296,10 +291,10 @@ if (result.success) {
                       className="w-full pl-10 pr-3 py-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none"
                     >
                       <option value="" className="bg-zinc-900 text-white">Select Department</option>
-                      <option value="BSIT" className="bg-zinc-900 text-white">BSIT</option>
-                      <option value="BSHM" className="bg-zinc-900 text-white">BSHM</option>
-                      <option value="BEED" className="bg-zinc-900 text-white">BEED</option>
-                      <option value="BSED" className="bg-zinc-900 text-white">BSED</option>
+                      <option value="BSIT" className="bg-zinc-900 text-white">Bachelor of Science in Information Technology (BSIT)</option>
+                      <option value="BSHM" className="bg-zinc-900 text-white">Bachelor of Science in Hospitality Management (BSHM)</option>
+                      <option value="BEED" className="bg-zinc-900 text-white">Bachelor of Elementary Education (BEED)</option>
+                      <option value="BSED" className="bg-zinc-900 text-white">Bachelor of Secondary Education (BSED)</option>
                     </select>
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                       <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -309,56 +304,51 @@ if (result.success) {
                   </div>
                 </div>
 
-                {/* Year & Section */}
+{/* Year & Section + Role */}
                 <div>
-                  <label htmlFor="yearSection" className="block text-sm font-medium text-zinc-300 mb-1.5">
-                    Year &amp; Section
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                    Academic Details
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <input
+                        id="yearSection"
+                        name="yearSection"
+                        type="text"
+                        value={formData.yearSection}
+                        onChange={handleChange}
+                        className={inputClass}
+                        placeholder="Year &amp; Section"
+                      />
                     </div>
-                    <input
-                      id="yearSection"
-                      name="yearSection"
-                      type="text"
-                      value={formData.yearSection}
-                      onChange={handleChange}
-                      className={inputClass}
-                      placeholder="e.g. 1st Year - A"
-                    />
-                  </div>
-                </div>
-
-{/* Role */}
-                <div>
-                  <label htmlFor="role" className="block text-sm font-medium text-zinc-300 mb-1.5">
-                    Role
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    </div>
-                    <select
-                      id="role"
-                      name="role"
-                      required
-                      value={formData.role}
-                      onChange={handleChange}
-                      className="w-full pl-10 pr-3 py-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none"
-                    >
-                      <option value="STUDENT" className="bg-zinc-900 text-white">Student</option>
-                      <option value="FACULTY" className="bg-zinc-900 text-white">Faculty</option>
-                      <option value="LIBRARIAN" className="bg-zinc-900 text-white">Librarian</option>
-                    </select>
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                      <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg className="w-5 h-5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                      <select
+                        id="role"
+                        name="role"
+                        required
+                        value={formData.role}
+                        onChange={handleChange}
+                        className="w-full pl-10 pr-3 py-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none"
+                      >
+                        <option value="STUDENT" className="bg-zinc-900 text-white">Student</option>
+                        <option value="FACULTY" className="bg-zinc-900 text-white">Faculty</option>
+                        <option value="LIBRARIAN" className="bg-zinc-900 text-white">Librarian</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>

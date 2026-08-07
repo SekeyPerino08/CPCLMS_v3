@@ -5,115 +5,279 @@ import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
 import Sidebar from "@/components/Sidebar";
 import {
-  Plus,
   Search,
-  Pencil,
-  Trash2,
   BookOpen,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
+  XCircle,
+  Clock,
   Coins,
+  AlertTriangle,
 } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
+// ── Transaction (Borrowed Books) status styling ──
+const txnStatusBadge: Record<string, string> = {
+  ACTIVE: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
+  RETURNED: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
+  OVERDUE: "bg-red-500/15 text-red-400 ring-red-500/30",
+};
+const txnStatusLabel: Record<string, string> = {
+  ACTIVE: "Borrowed",
+  RETURNED: "Returned",
+  OVERDUE: "Overdue",
+};
+
+// ── Request status styling ──
+const reqStatusBadge: Record<string, string> = {
+  PENDING: "bg-amber-500/15 text-amber-400 ring-amber-500/30",
+  APPROVED: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
+  REJECTED: "bg-red-500/15 text-red-400 ring-red-500/30",
+};
+const reqStatusLabel: Record<string, string> = {
+  PENDING: "Pending",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+};
+
 export default function RequestsPage() {
   const { user } = useAuth();
-  const [records, setRecords] = useState<any[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [successMsg, setSuccessMsg] = useState("");
-
   const isLibrarian = user?.role === "LIBRARIAN";
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  // Borrowed books (transactions)
+  const [txns, setTxns] = useState<any[]>([]);
+  const [txnTotal, setTxnTotal] = useState(0);
+  const [txnLoading, setTxnLoading] = useState(true);
+  const [txnSearch, setTxnSearch] = useState("");
+  const [txnStatusFilter, setTxnStatusFilter] = useState("");
+  const [txnPage, setTxnPage] = useState(1);
+
+  // Borrow requests
+  const [records, setRecords] = useState<any[]>([]);
+  const [reqTotal, setReqTotal] = useState(0);
+  const [reqLoading, setReqLoading] = useState(true);
+  const [reqSearch, setReqSearch] = useState("");
+  const [reqStatusFilter, setReqStatusFilter] = useState("");
+  const [reqPage, setReqPage] = useState(1);
+
+  const [successMsg, setSuccessMsg] = useState("");
+  const [error, setError] = useState("");
+
+// Declare Missing modal state (librarian only)
+  const [missingTarget, setMissingTarget] = useState<any>(null);
+  const [missingReason, setMissingReason] = useState("");
+  const [missingLoading, setMissingLoading] = useState(false);
+  const [missingError, setMissingError] = useState("");
+
+  // Reject Borrow Request modal state (librarian only)
+  const [rejectTarget, setRejectTarget] = useState<any>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+  const [rejectError, setRejectError] = useState("");
+
+  // ── Load borrowed books (transactions) ──
+  const loadTransactions = useCallback(async () => {
+    setTxnLoading(true);
     try {
       const params: Record<string, string> = {
-        page: String(currentPage),
+        page: String(txnPage),
         limit: String(PAGE_SIZE),
       };
-      if (search) params.search = search;
-      if (statusFilter) params.status = statusFilter;
+      if (txnSearch) params.search = txnSearch;
+      if (txnStatusFilter) params.status = txnStatusFilter;
 
       const res = await api.get<any>(`/transactions?${new URLSearchParams(params).toString()}`);
       if (res.success) {
-        setRecords((res.data as any[]) || []);
-        setTotal(res.meta?.total ?? ((res.data as any[]) || []).length);
+        setTxns((res.data as any[]) || []);
+        setTxnTotal(res.meta?.total ?? ((res.data as any[]) || []).length);
+      } else {
+        setError(res.error || "Failed to load borrowed books");
       }
     } catch {
-      setError("Failed to load records");
+      setError("Failed to load borrowed books");
     } finally {
-      setLoading(false);
+      setTxnLoading(false);
     }
-  }, [search, statusFilter, currentPage]);
+  }, [txnSearch, txnStatusFilter, txnPage]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadTransactions();
+  }, [loadTransactions]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [search, statusFilter]);
+    setTxnPage(1);
+  }, [txnSearch, txnStatusFilter]);
 
+  // ── Load borrow requests ──
+  const loadRequests = useCallback(async () => {
+    setReqLoading(true);
+    try {
+      const params: Record<string, string> = {
+        page: String(reqPage),
+        limit: String(PAGE_SIZE),
+      };
+      if (reqSearch) params.search = reqSearch;
+      if (reqStatusFilter) params.status = reqStatusFilter;
+
+      const res = await api.getBorrowRequests(params);
+      if (res.success) {
+        setRecords((res.data as any[]) || []);
+        setReqTotal(res.meta?.total ?? ((res.data as any[]) || []).length);
+      } else {
+        setError(res.error || "Failed to load borrow requests");
+      }
+    } catch {
+      setError("Failed to load borrow requests");
+    } finally {
+      setReqLoading(false);
+    }
+  }, [reqSearch, reqStatusFilter, reqPage]);
+
+  useEffect(() => {
+    loadRequests();
+  }, [loadRequests]);
+
+  useEffect(() => {
+    setReqPage(1);
+  }, [reqSearch, reqStatusFilter]);
+
+  // ── Borrowed books actions ──
   const handleReturn = async (record: any) => {
-    if (!window.confirm(`Mark "${record.book?.title}" as returned?`)) return;
+    if (!window.confirm(`Return "${record.book?.title || 'this book'}"?`)) return;
     try {
       const res = await api.returnBook(record.id);
       if (res.success) {
-        setSuccessMsg("Book marked as returned");
-        loadData();
+        setSuccessMsg("Book returned successfully");
+        loadTransactions();
         setTimeout(() => setSuccessMsg(""), 4000);
       } else {
-        setError(res.error || "Failed to mark returned");
+        setError(res.error || "Failed to return book");
       }
     } catch {
-      setError("Failed to mark returned");
+      setError("Failed to return book");
     }
   };
 
-  const handleCollectFine = async (record: any) => {
+  const handlePayFine = async (record: any) => {
     const amount = record.fineAmount ?? 0;
-    if (!window.confirm(`Collect fine of ₱${amount.toFixed(2)}?`)) return;
+    if (!window.confirm(`Pay fine of ₱${amount.toFixed(2)}?`)) return;
     try {
       const res = await api.payFine(record.id, amount);
       if (res.success) {
-        setSuccessMsg("Fine collected successfully");
-        loadData();
+        setSuccessMsg("Fine paid successfully");
+        loadTransactions();
         setTimeout(() => setSuccessMsg(""), 4000);
       } else {
-        setError(res.error || "Failed to collect fine");
+        setError(res.error || "Failed to pay fine");
       }
     } catch {
-      setError("Failed to collect fine");
+      setError("Failed to pay fine");
+    }
+  };
+
+  const openMissingModal = (record: any) => {
+    setMissingTarget(record);
+    setMissingReason("");
+    setMissingError("");
+  };
+
+  const handleDeclareMissing = async () => {
+    if (!missingTarget) return;
+    setMissingLoading(true);
+    setMissingError("");
+    try {
+      const res = await api.declareMissing(missingTarget.id, missingReason || undefined);
+      if (res.success) {
+        setMissingTarget(null);
+        setMissingReason("");
+        setSuccessMsg("Book declared missing");
+        loadTransactions();
+        setTimeout(() => setSuccessMsg(""), 4000);
+      } else {
+        setMissingError(res.error || "Failed to declare book missing");
+      }
+    } catch {
+      setMissingError("Failed to declare book missing");
+    } finally {
+      setMissingLoading(false);
+    }
+  };
+
+  // ── Borrow requests actions ──
+  const handleApprove = async (request: any) => {
+    if (!window.confirm(`Approve borrow request for "${request.book?.title}"?`)) return;
+    try {
+      const res = await api.approveRequest(request.id);
+      if (res.success) {
+        setSuccessMsg("Borrow request approved");
+        loadRequests();
+        setTimeout(() => setSuccessMsg(""), 4000);
+      } else {
+        setError(res.error || "Failed to approve request");
+      }
+    } catch {
+      setError("Failed to approve request");
+    }
+  };
+
+  const openRejectModal = (request: any) => {
+    setRejectTarget(request);
+    setRejectReason("");
+    setRejectError("");
+  };
+
+  const handleReject = async () => {
+    if (!rejectTarget) return;
+    const reason = rejectReason.trim();
+    if (!reason) {
+      setRejectError("A rejection reason is required");
+      return;
+    }
+    setRejectLoading(true);
+    setRejectError("");
+    try {
+      const res = await api.rejectRequest(rejectTarget.id, reason);
+      if (res.success) {
+        setRejectTarget(null);
+        setRejectReason("");
+        setSuccessMsg("Borrow request rejected");
+        loadRequests();
+        setTimeout(() => setSuccessMsg(""), 4000);
+      } else {
+        setRejectError(res.error || "Failed to reject request");
+      }
+    } catch {
+      setRejectError("Failed to reject request");
+    } finally {
+      setRejectLoading(false);
     }
   };
 
   const formatDate = (d?: string) =>
     d ? new Date(d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) : "—";
 
-  const statusBadge: Record<string, string> = {
-    ACTIVE: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
-    OVERDUE: "bg-red-500/15 text-red-400 ring-red-500/30",
-    RETURNED: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
-  };
+  const txnTotalPages = Math.max(1, Math.ceil(txnTotal / PAGE_SIZE));
+  const reqTotalPages = Math.max(1, Math.ceil(reqTotal / PAGE_SIZE));
 
-  const statusLabel: Record<string, string> = {
-    ACTIVE: "Borrowed",
-    OVERDUE: "Overdue",
-    RETURNED: "Returned",
-  };
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const getPageNumbers = () => {
+  const getTxnPageNumbers = () => {
     const pages: number[] = [];
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
+    const maxVisible = 5;
+    let start = Math.max(1, txnPage - Math.floor(maxVisible / 2));
+    const end = Math.min(txnTotalPages, start + maxVisible - 1);
+    start = Math.max(1, end - maxVisible + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  };
+
+  const getReqPageNumbers = () => {
+    const pages: number[] = [];
+    const maxVisible = 5;
+    let start = Math.max(1, reqPage - Math.floor(maxVisible / 2));
+    const end = Math.min(reqTotalPages, start + maxVisible - 1);
+    start = Math.max(1, end - maxVisible + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
     return pages;
   };
 
@@ -133,190 +297,478 @@ export default function RequestsPage() {
             </div>
           )}
 
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-white">Borrow Records</h1>
-              <p className="text-sm text-zinc-400 mt-1">
-                Track book borrowing and returns ({total} total)
-              </p>
+{/* ===================================================== */}
+          {/* SECTION 1 — My Borrowed Books (borrowers only) */}
+          {/* ===================================================== */}
+          {!isLibrarian && (
+          <div className="mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <h1 className="text-2xl font-bold text-white">My Borrowed Books</h1>
+                <p className="text-sm text-zinc-400 mt-1">
+                  {isLibrarian ? "All borrowing activity" : "Your currently borrowed and recently returned books"}
+                  {" · "}{txnTotal} record{txnTotal !== 1 ? "s" : ""}
+                </p>
+              </div>
             </div>
-            {isLibrarian && (
-              <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-colors">
-                <Plus className="w-4 h-4" />
-                New Record
-              </button>
+
+            {/* Toolbar */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 mb-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="w-5 h-5 text-zinc-500" />
+                  </div>
+                  <input
+                    type="text"
+                    value={txnSearch}
+                    onChange={(e) => setTxnSearch(e.target.value)}
+                    placeholder="Search by book title..."
+                    className="w-full pl-10 pr-3 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  />
+                </div>
+                <select
+                  value={txnStatusFilter}
+                  onChange={(e) => setTxnStatusFilter(e.target.value)}
+                  className="px-3 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none"
+                >
+                  <option value="" className="bg-zinc-900 text-white">All Status</option>
+                  <option value="ACTIVE" className="bg-zinc-900 text-white">Borrowed</option>
+                  <option value="OVERDUE" className="bg-zinc-900 text-white">Overdue</option>
+                  <option value="RETURNED" className="bg-zinc-900 text-white">Returned</option>
+                </select>
+              </div>
+            </div>
+
+            {txnLoading && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-16 bg-zinc-900 animate-pulse border-b border-zinc-800/40" />
+                ))}
+              </div>
+            )}
+
+            {!txnLoading && txns.length === 0 && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 flex flex-col items-center justify-center py-16 text-center">
+                <BookOpen className="w-12 h-12 text-zinc-600 mb-4" />
+                <p className="text-zinc-300 font-medium">No borrowed books found</p>
+                <p className="text-sm text-zinc-500 mt-1">
+                  {txnSearch || txnStatusFilter ? "Try adjusting your search or filters" : "Borrowed books will appear here"}
+                </p>
+              </div>
+            )}
+
+            {!txnLoading && txns.length > 0 && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-zinc-900 text-left text-xs uppercase tracking-wide text-zinc-500">
+                        <th className="px-6 py-3 font-medium">Book</th>
+                        <th className="px-6 py-3 font-medium hidden sm:table-cell">Accession</th>
+                        <th className="px-6 py-3 font-medium hidden sm:table-cell">Borrow Date</th>
+                        <th className="px-6 py-3 font-medium hidden md:table-cell">Due Date</th>
+                        <th className="px-6 py-3 font-medium hidden md:table-cell">Return Date</th>
+                        <th className="px-6 py-3 font-medium">Status</th>
+                        <th className="px-6 py-3 font-medium">Fine</th>
+                        <th className="px-6 py-3 font-medium text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {txns.map((txn: any) => (
+                        <tr key={txn.id} className="border-t border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="text-zinc-100 font-medium">{txn.book?.title || "Unknown"}</p>
+                            <p className="text-xs text-zinc-500">{txn.book?.author || ""}</p>
+                          </td>
+                          <td className="px-6 py-4 text-zinc-400 hidden sm:table-cell">{txn.book?.accessionNo || "—"}</td>
+                          <td className="px-6 py-4 text-zinc-400 hidden sm:table-cell">{formatDate(txn.borrowDate)}</td>
+                          <td className="px-6 py-4 text-zinc-400 hidden md:table-cell">{formatDate(txn.dueDate)}</td>
+                          <td className="px-6 py-4 text-zinc-400 hidden md:table-cell">{formatDate(txn.returnDate)}</td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${txnStatusBadge[txn.status] || "bg-zinc-500/15 text-zinc-400 ring-zinc-500/30"}`}>
+                              {txnStatusLabel[txn.status] || txn.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`font-medium ${txn.fineAmount > 0 ? "text-amber-400" : "text-zinc-500"}`}>
+                              {txn.fineAmount ? `₱${txn.fineAmount.toFixed(2)}` : "—"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="inline-flex items-center gap-1.5">
+                              {!isLibrarian && txn.status === "ACTIVE" && (
+                                <button
+                                  onClick={() => handleReturn(txn)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Return
+                                </button>
+                              )}
+                              {!isLibrarian && txn.status === "OVERDUE" && !txn.finePaid && txn.fineAmount > 0 && (
+                                <button
+                                  onClick={() => handlePayFine(txn)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-red-500/15 hover:bg-red-500/25 text-red-400 text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  <Coins className="w-3.5 h-3.5" /> Pay Fine
+                                </button>
+                              )}
+                              {isLibrarian && txn.status === "ACTIVE" && (
+                                <>
+                                  <button
+                                    onClick={() => handleReturn(txn)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Return
+                                  </button>
+                                  <button
+                                    onClick={() => openMissingModal(txn)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 text-xs font-medium rounded-lg transition-colors"
+                                  >
+                                    <AlertTriangle className="w-3.5 h-3.5" /> Declare Missing
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {!txnLoading && txns.length > 0 && (
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-sm text-zinc-500">
+                  Showing{" "}
+                  <span className="text-zinc-300">
+                    {(txnPage - 1) * PAGE_SIZE + 1}–{Math.min(txnPage * PAGE_SIZE, txnTotal)}
+                  </span>{" "}
+                  of <span className="text-zinc-300">{txnTotal}</span> records
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setTxnPage((p) => Math.max(1, p - 1))}
+                    disabled={txnPage === 1}
+                    className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  {getTxnPageNumbers().map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setTxnPage(page)}
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
+                        page === txnPage
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                          : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setTxnPage((p) => Math.min(txnTotalPages, p + 1))}
+                    disabled={txnPage === txnTotalPages}
+                    className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+)}
+          </div>
+          )}
+
+          {/* Divider (only when borrowers see the borrowed books section) */}
+          {!isLibrarian && <div className="border-t border-zinc-800 mb-8" />}
+
+          {/* ===================================================== */}
+          {/* SECTION 2 — Borrow Requests */}
+          {/* ===================================================== */}
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Borrow Requests</h2>
+                <p className="text-sm text-zinc-400 mt-1">
+                  Review and manage book borrowing requests · {reqTotal} total
+                </p>
+              </div>
+            </div>
+
+            {/* Toolbar */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 mb-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="w-5 h-5 text-zinc-500" />
+                  </div>
+                  <input
+                    type="text"
+                    value={reqSearch}
+                    onChange={(e) => setReqSearch(e.target.value)}
+                    placeholder="Search by book or member..."
+                    className="w-full pl-10 pr-3 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  />
+                </div>
+                <select
+                  value={reqStatusFilter}
+                  onChange={(e) => setReqStatusFilter(e.target.value)}
+                  className="px-3 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none"
+                >
+                  <option value="" className="bg-zinc-900 text-white">All Status</option>
+                  <option value="PENDING" className="bg-zinc-900 text-white">Pending</option>
+                  <option value="APPROVED" className="bg-zinc-900 text-white">Approved</option>
+                  <option value="REJECTED" className="bg-zinc-900 text-white">Rejected</option>
+                </select>
+              </div>
+            </div>
+
+            {reqLoading && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-16 bg-zinc-900 animate-pulse border-b border-zinc-800/40" />
+                ))}
+              </div>
+            )}
+
+            {!reqLoading && records.length === 0 && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 flex flex-col items-center justify-center py-16 text-center">
+                <BookOpen className="w-12 h-12 text-zinc-600 mb-4" />
+                <p className="text-zinc-300 font-medium">No borrow requests found</p>
+                <p className="text-sm text-zinc-500 mt-1">
+                  {reqSearch || reqStatusFilter ? "Try adjusting your search or filters" : "Borrow requests will appear here"}
+                </p>
+              </div>
+            )}
+
+            {!reqLoading && records.length > 0 && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-zinc-900 text-left text-xs uppercase tracking-wide text-zinc-500">
+                        <th className="px-6 py-3 font-medium">Book</th>
+                        <th className="px-6 py-3 font-medium hidden md:table-cell">Member</th>
+                        <th className="px-6 py-3 font-medium hidden sm:table-cell">Request Date</th>
+                        <th className="px-6 py-3 font-medium">Notes</th>
+                        <th className="px-6 py-3 font-medium">Status</th>
+                        <th className="px-6 py-3 font-medium text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {records.map((req: any) => (
+                        <tr key={req.id} className="border-t border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="text-zinc-100 font-medium">{req.book?.title || "Unknown"}</p>
+                            <p className="text-xs text-zinc-500">{req.book?.accessionNo || ""}</p>
+                          </td>
+                          <td className="px-6 py-4 text-zinc-300 hidden md:table-cell">
+                            {req.user?.firstName} {req.user?.lastName}
+                            <p className="text-xs text-zinc-500">{req.user?.libraryId || ""}</p>
+                          </td>
+                          <td className="px-6 py-4 text-zinc-400 hidden sm:table-cell">{formatDate(req.requestDate)}</td>
+                          <td className="px-6 py-4 text-zinc-400 max-w-[180px] truncate">
+                            {req.notes || "—"}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${reqStatusBadge[req.status] || "bg-zinc-500/15 text-zinc-400 ring-zinc-500/30"}`}>
+                              {reqStatusLabel[req.status] || req.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              {isLibrarian && req.status === "PENDING" && (
+                                <>
+                                  <button
+                                    onClick={() => handleApprove(req)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                                  </button>
+                                  <button
+                                    onClick={() => openRejectModal(req)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-red-500/15 hover:bg-red-500/25 text-red-400 text-xs font-medium rounded-lg transition-colors"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" /> Reject
+                                  </button>
+                                </>
+                              )}
+                              {!isLibrarian && req.status === "PENDING" && (
+                                <span className="inline-flex items-center gap-1 text-xs text-amber-400">
+                                  <Clock className="w-3.5 h-3.5" /> Awaiting approval
+                                </span>
+                              )}
+                              {!isLibrarian && req.status !== "PENDING" && (
+                                <span className="text-xs text-zinc-500">—</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {!reqLoading && records.length > 0 && (
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-sm text-zinc-500">
+                  Showing{" "}
+                  <span className="text-zinc-300">
+                    {(reqPage - 1) * PAGE_SIZE + 1}–{Math.min(reqPage * PAGE_SIZE, reqTotal)}
+                  </span>{" "}
+                  of <span className="text-zinc-300">{reqTotal}</span> records
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setReqPage((p) => Math.max(1, p - 1))}
+                    disabled={reqPage === 1}
+                    className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  {getReqPageNumbers().map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setReqPage(page)}
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
+                        page === reqPage
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                          : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setReqPage((p) => Math.min(reqTotalPages, p + 1))}
+                    disabled={reqPage === reqTotalPages}
+                    className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             )}
           </div>
-
-          {/* Toolbar */}
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 mb-6">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="w-5 h-5 text-zinc-500" />
-                </div>
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by book or member..."
-                  className="w-full pl-10 pr-3 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                />
-              </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2.5 bg-zinc-950 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none"
-              >
-                <option value="" className="bg-zinc-900 text-white">All Status</option>
-                <option value="ACTIVE" className="bg-zinc-900 text-white">Borrowed</option>
-                <option value="OVERDUE" className="bg-zinc-900 text-white">Overdue</option>
-                <option value="RETURNED" className="bg-zinc-900 text-white">Returned</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Loading */}
-          {loading && (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-16 bg-zinc-900 animate-pulse border-b border-zinc-800/40" />
-              ))}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!loading && records.length === 0 && (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 flex flex-col items-center justify-center py-20 text-center">
-              <BookOpen className="w-12 h-12 text-zinc-600 mb-4" />
-              <p className="text-zinc-300 font-medium">No records found</p>
-              <p className="text-sm text-zinc-500 mt-1">
-                {search || statusFilter ? "Try adjusting your search or filters" : "Borrow records will appear here"}
-              </p>
-            </div>
-          )}
-
-          {/* Table */}
-          {!loading && records.length > 0 && (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-zinc-900 text-left text-xs uppercase tracking-wide text-zinc-500">
-                      <th className="px-6 py-3 font-medium">Book</th>
-                      <th className="px-6 py-3 font-medium hidden md:table-cell">Member</th>
-                      <th className="px-6 py-3 font-medium hidden sm:table-cell">Borrow Date</th>
-                      <th className="px-6 py-3 font-medium hidden sm:table-cell">Due Date</th>
-                      <th className="px-6 py-3 font-medium hidden lg:table-cell">Return Date</th>
-                      <th className="px-6 py-3 font-medium">Status</th>
-                      <th className="px-6 py-3 font-medium">Fine</th>
-                      <th className="px-6 py-3 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((txn: any) => (
-                      <tr key={txn.id} className="border-t border-zinc-800/60 hover:bg-zinc-800/40 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="text-zinc-100 font-medium">{txn.book?.title || "Unknown"}</p>
-                          <p className="text-xs text-zinc-500">{txn.book?.accessionNo || ""}</p>
-                        </td>
-                        <td className="px-6 py-4 text-zinc-300 hidden md:table-cell">
-                          {txn.user?.firstName} {txn.user?.lastName}
-                        </td>
-                        <td className="px-6 py-4 text-zinc-400 hidden sm:table-cell">{formatDate(txn.borrowDate)}</td>
-                        <td className="px-6 py-4 text-zinc-400 hidden sm:table-cell">{formatDate(txn.dueDate)}</td>
-                        <td className="px-6 py-4 text-zinc-400 hidden lg:table-cell">{formatDate(txn.returnDate)}</td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${statusBadge[txn.status] || "bg-zinc-500/15 text-zinc-400 ring-zinc-500/30"}`}>
-                            {statusLabel[txn.status] || txn.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`font-medium ${txn.fineAmount > 0 ? "text-amber-400" : "text-zinc-500"}`}>
-                            {txn.fineAmount ? `₱${txn.fineAmount.toFixed(2)}` : "—"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="inline-flex items-center gap-1.5">
-                            {isLibrarian && txn.status !== "RETURNED" && (
-                              <button
-                                onClick={() => handleReturn(txn)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Mark Returned
-                              </button>
-                            )}
-                            {isLibrarian && txn.status === "OVERDUE" && !txn.finePaid && txn.fineAmount > 0 && (
-                              <button
-                                onClick={() => handleCollectFine(txn)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-red-500/15 hover:bg-red-500/25 text-red-400 text-xs font-medium rounded-lg transition-colors"
-                              >
-                                <Coins className="w-3.5 h-3.5" /> Collect Fine
-                              </button>
-                            )}
-                            <button className="p-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors" aria-label="Edit">
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button className="p-2 rounded-lg text-zinc-400 hover:bg-red-500/10 hover:text-red-400 transition-colors" aria-label="Delete">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {!loading && records.length > 0 && (
-            <div className="flex items-center justify-between mt-6">
-              <p className="text-sm text-zinc-500">
-                Showing{" "}
-                <span className="text-zinc-300">
-                  {(currentPage - 1) * PAGE_SIZE + 1}–
-                  {Math.min(currentPage * PAGE_SIZE, total)}
-                </span>{" "}
-                of <span className="text-zinc-300">{total}</span> records
-              </p>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                {getPageNumbers().map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
-                      page === currentPage
-                        ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                        : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Next page"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Reject Borrow Request modal (librarian only) */}
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setRejectTarget(null)} />
+          <div className="relative z-50 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/50">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 text-red-400 flex items-center justify-center shrink-0">
+                <XCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Reject Borrow Request</h3>
+                <p className="text-sm text-zinc-400 mt-1">
+                  Reject the request for "{rejectTarget.book?.title || "this book"}"? A reason is required.
+                </p>
+              </div>
+            </div>
+
+            {rejectError && (
+              <div className="p-3 mb-4 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400">{rejectError}</div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                Reason <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g., Book not available, exceeding borrow limit"
+                rows={3}
+                className="flex w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRejectTarget(null)}
+                className="flex-1 px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium rounded-xl border border-zinc-700 transition-colors"
+                disabled={rejectLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-red-600/30 transition-colors"
+                disabled={rejectLoading}
+              >
+                {rejectLoading ? "Rejecting..." : "Confirm Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Declare Missing confirmation modal (librarian only) */}
+      {missingTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMissingTarget(null)} />
+          <div className="relative z-50 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl shadow-black/50">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Declare Book Missing</h3>
+                <p className="text-sm text-zinc-400 mt-1">
+                  Mark "{missingTarget.book?.title || "this book"}" as missing? This will set the book status to lost and close the transaction.
+                </p>
+              </div>
+            </div>
+
+            {missingError && (
+              <div className="p-3 mb-4 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400">{missingError}</div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                Reason <span className="text-zinc-500">(optional)</span>
+              </label>
+              <textarea
+                value={missingReason}
+                onChange={(e) => setMissingReason(e.target.value)}
+                placeholder="e.g., Not returned by borrower, lost in transit"
+                rows={3}
+                className="flex w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setMissingTarget(null)}
+                className="flex-1 px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium rounded-xl border border-zinc-700 transition-colors"
+                disabled={missingLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeclareMissing}
+                className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-amber-600/30 transition-colors"
+                disabled={missingLoading}
+              >
+                {missingLoading ? "Declaring..." : "Declare Missing"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
