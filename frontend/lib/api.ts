@@ -11,6 +11,8 @@ export interface ApiResponse<T = unknown> {
   message?: string;
   data?: T;
   error?: string;
+  rateLimited?: boolean;
+  retryAfterMs?: number;
   meta?: {
     page: number;
     limit: number;
@@ -26,6 +28,13 @@ export interface AuthTokens {
 
 class ApiClient {
   private baseUrl: string;
+
+  // In-flight request deduplication map (keyed by method + endpoint + body)
+  private inflight = new Map<string, Promise<ApiResponse<any>>>();
+  // Client-side rate-limit cooldown: timestamp until which requests are suppressed
+  private rateLimitUntil = 0;
+  // How long to suppress requests after receiving a 429 (ms)
+  private static readonly RATE_LIMIT_COOLDOWN_MS = 10000;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -68,32 +77,96 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers,
-    });
-
-    const data: ApiResponse<T> = await response.json();
-
-    // If unauthorized, try refresh token
-    if (response.status === 401 && this.getRefreshToken()) {
-      const refreshed = await this.refreshToken();
-      if (refreshed) {
-        headers['Authorization'] = `Bearer ${this.getToken()}`;
-        const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
-          ...options,
-          headers,
-        });
-        return retryResponse.json();
-      }
-      // Refresh failed
-      this.clearTokens();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
+    // Client-side cooldown: if we recently received a 429, short-circuit
+    // so we don't keep hammering the server and trigger the limiter again.
+    const remainingCooldown = this.rateLimitUntil - Date.now();
+    if (remainingCooldown > 0) {
+      return {
+        success: false,
+        error: 'Too many requests, please try again later.',
+        rateLimited: true,
+        retryAfterMs: remainingCooldown,
+      } as ApiResponse<T>;
     }
 
-    return data;
+    const method = options.method || 'GET';
+    const body = options.body ? String(options.body) : '';
+    // Deduplicate identical concurrent requests so we never fire the same
+    // GET/POST more than once at a time (keyed by method + endpoint + body).
+    const cacheKey = `${method}:${endpoint}:${body}`;
+    if (this.inflight.has(cacheKey)) {
+      return this.inflight.get(cacheKey) as Promise<ApiResponse<T>>;
+    }
+
+    const promise = this.doFetch<T>(endpoint, options, headers, cacheKey);
+    this.inflight.set(cacheKey, promise);
+    return promise;
+  }
+
+  private async doFetch<T>(
+    endpoint: string,
+    options: RequestInit,
+    headers: Record<string, string>,
+    cacheKey: string
+  ): Promise<ApiResponse<T>> {
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      // 429 — rate limited. Record a cooldown so the UI can show a message
+      // and we suppress repeated identical calls for a short window.
+      if (response.status === 429) {
+        this.rateLimitUntil = Date.now() + ApiClient.RATE_LIMIT_COOLDOWN_MS;
+        let data: ApiResponse<T>;
+        try {
+          data = await response.json();
+        } catch {
+          data = {} as ApiResponse<T>;
+        }
+        return {
+          ...data,
+          success: false,
+          rateLimited: true,
+          retryAfterMs: ApiClient.RATE_LIMIT_COOLDOWN_MS,
+          error: data.error || 'Too many requests, please try again later.',
+        } as ApiResponse<T>;
+      }
+
+      let data: ApiResponse<T>;
+      try {
+        data = await response.json();
+      } catch {
+        data = { success: false, error: 'Unexpected server response' } as ApiResponse<T>;
+      }
+
+      // If unauthorized, try refresh token
+      if (response.status === 401 && this.getRefreshToken()) {
+        const refreshed = await this.refreshToken();
+        if (refreshed) {
+          headers['Authorization'] = `Bearer ${this.getToken()}`;
+          const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
+            ...options,
+            headers,
+          });
+          try {
+            return await retryResponse.json();
+          } catch {
+            return { success: false, error: 'Unexpected server response' } as ApiResponse<T>;
+          }
+        }
+        // Refresh failed
+        this.clearTokens();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+      }
+
+      return data;
+    } finally {
+      this.inflight.delete(cacheKey);
+    }
   }
 
   async refreshToken(): Promise<boolean> {

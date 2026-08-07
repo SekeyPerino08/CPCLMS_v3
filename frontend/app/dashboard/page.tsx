@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import NotificationBell from "@/components/NotificationBell";
 import api from "@/lib/api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -13,7 +14,6 @@ import {
   ClipboardList,
   ScrollText,
 Shield,
-  Bell,
   Search,
   TrendingUp,
   TrendingDown,
@@ -185,10 +185,8 @@ const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
                 <h1 className="text-2xl font-bold text-white">Library Dashboard</h1>
                 <p className="text-sm text-zinc-400 mt-1">Welcome back! Here&apos;s your library overview.</p>
               </div>
-<div className="flex items-center gap-2">
-                <button className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors">
-                  <Bell className="w-5 h-5" />
-                </button>
+              <div className="flex items-center gap-2">
+                <NotificationBell />
 
                 {/* Profile dropdown */}
                 <div className="relative">

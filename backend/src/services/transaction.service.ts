@@ -14,6 +14,7 @@ import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors';
 import { getPaginationParams, buildPaginationMeta } from '../utils/pagination';
 import { generateQRCode } from '../utils/qrcode';
 import { policyService } from './policy.service';
+import { notificationService } from './notification.service';
 import { Role } from '@prisma/client';
 
 export class TransactionService {
@@ -80,7 +81,15 @@ export class TransactionService {
       }
     }
 
-    // Check existing pending/approved requests for these books
+    // Check existing pending/approved requests for these books.
+    // IMPORTANT: Only block on a request that is GENUINELY still outstanding.
+    // - PENDING requests always block (not yet processed by a librarian).
+    // - APPROVED requests only block if the user STILL has the book, i.e.,
+    //   there is an ACTIVE or OVERDUE transaction for that book. Approving a
+    //   request always creates a transaction, and when the book is returned
+    //   the transaction becomes RETURNED — but the request row stays APPROVED
+    //   forever. That stale APPROVED row must NOT block the user from
+    //   requesting the same book again.
     const existingRequests = await prisma.borrowRequest.findMany({
       where: {
         userId,
@@ -88,8 +97,29 @@ export class TransactionService {
         status: { in: ['PENDING', 'APPROVED'] },
       },
     });
-    if (existingRequests.length > 0) {
-      const titles = existingRequests.map((r) => r.bookId).join(', ');
+
+    const pendingRequests = existingRequests.filter((r) => r.status === 'PENDING');
+
+    let approvedStillBlocking = false;
+    const approvedRequests = existingRequests.filter((r) => r.status === 'APPROVED');
+    if (approvedRequests.length > 0) {
+      const approvedBookIds = approvedRequests.map((r) => r.bookId);
+      const activeTxns = await prisma.borrowTransaction.count({
+        where: {
+          userId,
+          bookId: { in: approvedBookIds },
+          status: { in: ['ACTIVE', 'OVERDUE'] },
+        },
+      });
+      approvedStillBlocking = activeTxns > 0;
+    }
+
+    if (pendingRequests.length > 0 || approvedStillBlocking) {
+      const blocking = [
+        ...pendingRequests,
+        ...(approvedStillBlocking ? approvedRequests : []),
+      ];
+      const titles = blocking.map((r) => r.bookId).join(', ');
       throw new ConflictError(
         `You already have a pending or approved request for one of these books (${titles}).`
       );
@@ -148,6 +178,17 @@ export class TransactionService {
 
       created.push(request);
     }
+
+    // Notify all librarians about the new borrow request(s)
+    const requesterName = `${user.firstName} ${user.lastName}`;
+    const bookCount = uniqueBookIds.length;
+    const bookTitles = books.map((b) => b.title).join(', ');
+    await notificationService.notifyAllLibrarians(
+      'BORROW_CONFIRMATION',
+      'New Borrow Request',
+      `${requesterName} requested to borrow ${bookCount} book${bookCount > 1 ? 's' : ''}${bookCount === 1 ? ` (${bookTitles})` : ''}`,
+      '/requests'
+    );
 
     return uniqueBookIds.length === 1 ? created[0] : created;
   }
@@ -444,6 +485,15 @@ async listBorrowRequests(query: Record<string, unknown>, userId?: string) {
         },
       }),
     ]);
+
+    // Notify all librarians about the returned book
+    const borrowerName = `${transaction.user.firstName} ${transaction.user.lastName}`;
+    await notificationService.notifyAllLibrarians(
+      'BORROW_CONFIRMATION',
+      'Book Returned',
+      `${borrowerName} returned "${transaction.book.title}"${isOverdue ? ' (overdue)' : ''}`,
+      '/requests'
+    );
 
     // If there's a fine, notify the user
     if (fineAmount > 0) {

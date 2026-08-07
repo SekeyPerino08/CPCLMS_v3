@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
+import { useDebounce } from "@/lib/useDebounce";
 import { BookBorrowModal } from "@/components/BookBorrowModal";
 import Sidebar from "@/components/Sidebar";
 import {
@@ -41,37 +42,45 @@ export default function BooksPage() {
   const [cart, setCart] = useState<any[]>([]);
   const [showBorrowModal, setShowBorrowModal] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const isLibrarian = user?.role === "LIBRARIAN";
+
+  // Debounced search/filter values (300ms) to avoid per-keystroke API spam
+  const debouncedSearch = useDebounce(search, 300);
+  const debouncedCategory = useDebounce(categoryFilter, 300);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const params: Record<string, string> = {};
-      if (search) params.search = search;
-      if (categoryFilter) params.categoryId = categoryFilter;
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (debouncedCategory) params.categoryId = debouncedCategory;
       const [booksRes, catsRes] = await Promise.all([
         api.getBooks(params),
         api.getCategories(),
       ]);
-      if (booksRes.success) setBooks(booksRes.data || []);
+      if (booksRes.success) {
+        setBooks(booksRes.data || []);
+      } else if (booksRes.rateLimited) {
+        setError("You're moving too fast. Please wait a moment and try again.");
+      }
       if (catsRes.success) setCategories(catsRes.data || []);
     } catch {
       setError("Failed to load books");
     } finally {
       setLoading(false);
     }
-  }, [search, categoryFilter]);
+  }, [debouncedSearch, debouncedCategory]);
 
   useEffect(() => {
-    const timer = setTimeout(loadData, 300);
-    return () => clearTimeout(timer);
+    loadData();
   }, [loadData]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, categoryFilter, books.length]);
+  }, [debouncedSearch, debouncedCategory, books.length]);
 
   const inCart = (id: string) => cart.some((b) => b.id === id);
 
@@ -118,17 +127,23 @@ export default function BooksPage() {
 
   const handleDelete = async (book: any) => {
     if (!window.confirm(`Delete "${book.title}"? This action cannot be undone.`)) return;
+    if (deletingId) return; // prevent double-click spam
+    setDeletingId(book.id);
     try {
       const res = await api.delete(`/books/${book.id}`);
       if (res.success) {
         setSuccessMsg("Book deleted successfully");
         loadData();
         setTimeout(() => setSuccessMsg(""), 4000);
+      } else if (res.rateLimited) {
+        setError("You're moving too fast. Please wait a moment and try again.");
       } else {
         setError(res.error || "Failed to delete book");
       }
     } catch {
       setError("Failed to delete book");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -294,9 +309,10 @@ export default function BooksPage() {
                           </button>
                           <button
                             onClick={() => handleDelete(book)}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-medium rounded-lg transition-colors"
+                            disabled={deletingId !== null}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            <Trash2 className="w-4 h-4" /> Delete
+                            <Trash2 className={`w-4 h-4 ${deletingId === book.id ? "animate-spin" : ""}`} /> Delete
                           </button>
                         </>
                       ) : (
@@ -382,10 +398,11 @@ export default function BooksPage() {
                             </button>
                             <button
                               onClick={() => handleDelete(book)}
-                              className="p-2 rounded-lg text-zinc-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                              disabled={deletingId !== null}
+                              className="p-2 rounded-lg text-zinc-400 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                               aria-label="Delete"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className={`w-4 h-4 ${deletingId === book.id ? "animate-spin" : ""}`} />
                             </button>
                           </div>
                         ) : (

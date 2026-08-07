@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import NotificationBell from "@/components/NotificationBell";
 import Sidebar from "@/components/Sidebar";
 import api from "@/lib/api";
 import Link from "next/link";
@@ -11,7 +12,6 @@ import {
   BookMarked,
   Clock,
   Coins,
-  Bell,
   User,
   Settings,
   LogOut,
@@ -100,9 +100,7 @@ const formatDate = (d?: string) =>
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors">
-                  <Bell className="w-5 h-5" />
-                </button>
+                <NotificationBell />
 
                 {/* Profile dropdown */}
                 <div className="relative">

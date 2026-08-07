@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
+import { useDebounce } from "@/lib/useDebounce";
 import Sidebar from "@/components/Sidebar";
 import {
   Search,
@@ -65,6 +66,15 @@ export default function RequestsPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [error, setError] = useState("");
 
+  // Debounced search/filter values (300ms) to avoid per-keystroke API spam
+  const debouncedTxnSearch = useDebounce(txnSearch, 300);
+  const debouncedTxnStatus = useDebounce(txnStatusFilter, 300);
+  const debouncedReqSearch = useDebounce(reqSearch, 300);
+  const debouncedReqStatus = useDebounce(reqStatusFilter, 300);
+
+  // Per-action in-flight guards (disable buttons while a request is running)
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
 // Declare Missing modal state (librarian only)
   const [missingTarget, setMissingTarget] = useState<any>(null);
   const [missingReason, setMissingReason] = useState("");
@@ -85,13 +95,15 @@ export default function RequestsPage() {
         page: String(txnPage),
         limit: String(PAGE_SIZE),
       };
-      if (txnSearch) params.search = txnSearch;
-      if (txnStatusFilter) params.status = txnStatusFilter;
+      if (debouncedTxnSearch) params.search = debouncedTxnSearch;
+      if (debouncedTxnStatus) params.status = debouncedTxnStatus;
 
       const res = await api.get<any>(`/transactions?${new URLSearchParams(params).toString()}`);
       if (res.success) {
         setTxns((res.data as any[]) || []);
         setTxnTotal(res.meta?.total ?? ((res.data as any[]) || []).length);
+      } else if (res.rateLimited) {
+        setError("You're moving too fast. Please wait a moment and try again.");
       } else {
         setError(res.error || "Failed to load borrowed books");
       }
@@ -100,7 +112,7 @@ export default function RequestsPage() {
     } finally {
       setTxnLoading(false);
     }
-  }, [txnSearch, txnStatusFilter, txnPage]);
+  }, [debouncedTxnSearch, debouncedTxnStatus, txnPage]);
 
   useEffect(() => {
     loadTransactions();
@@ -108,7 +120,7 @@ export default function RequestsPage() {
 
   useEffect(() => {
     setTxnPage(1);
-  }, [txnSearch, txnStatusFilter]);
+  }, [debouncedTxnSearch, debouncedTxnStatus]);
 
   // ── Load borrow requests ──
   const loadRequests = useCallback(async () => {
@@ -118,13 +130,15 @@ export default function RequestsPage() {
         page: String(reqPage),
         limit: String(PAGE_SIZE),
       };
-      if (reqSearch) params.search = reqSearch;
-      if (reqStatusFilter) params.status = reqStatusFilter;
+      if (debouncedReqSearch) params.search = debouncedReqSearch;
+      if (debouncedReqStatus) params.status = debouncedReqStatus;
 
       const res = await api.getBorrowRequests(params);
       if (res.success) {
         setRecords((res.data as any[]) || []);
         setReqTotal(res.meta?.total ?? ((res.data as any[]) || []).length);
+      } else if (res.rateLimited) {
+        setError("You're moving too fast. Please wait a moment and try again.");
       } else {
         setError(res.error || "Failed to load borrow requests");
       }
@@ -133,7 +147,7 @@ export default function RequestsPage() {
     } finally {
       setReqLoading(false);
     }
-  }, [reqSearch, reqStatusFilter, reqPage]);
+  }, [debouncedReqSearch, debouncedReqStatus, reqPage]);
 
   useEffect(() => {
     loadRequests();
@@ -141,39 +155,51 @@ export default function RequestsPage() {
 
   useEffect(() => {
     setReqPage(1);
-  }, [reqSearch, reqStatusFilter]);
+  }, [debouncedReqSearch, debouncedReqStatus]);
 
-  // ── Borrowed books actions ──
+// ── Borrowed books actions ──
   const handleReturn = async (record: any) => {
     if (!window.confirm(`Return "${record.book?.title || 'this book'}"?`)) return;
+    if (actionLoadingId) return; // prevent double-click spam
+    setActionLoadingId(record.id);
     try {
       const res = await api.returnBook(record.id);
       if (res.success) {
         setSuccessMsg("Book returned successfully");
         loadTransactions();
         setTimeout(() => setSuccessMsg(""), 4000);
+      } else if (res.rateLimited) {
+        setError("You're moving too fast. Please wait a moment and try again.");
       } else {
         setError(res.error || "Failed to return book");
       }
     } catch {
       setError("Failed to return book");
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   const handlePayFine = async (record: any) => {
     const amount = record.fineAmount ?? 0;
     if (!window.confirm(`Pay fine of ₱${amount.toFixed(2)}?`)) return;
+    if (actionLoadingId) return; // prevent double-click spam
+    setActionLoadingId(record.id);
     try {
       const res = await api.payFine(record.id, amount);
       if (res.success) {
         setSuccessMsg("Fine paid successfully");
         loadTransactions();
         setTimeout(() => setSuccessMsg(""), 4000);
+      } else if (res.rateLimited) {
+        setError("You're moving too fast. Please wait a moment and try again.");
       } else {
         setError(res.error || "Failed to pay fine");
       }
     } catch {
       setError("Failed to pay fine");
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -205,20 +231,26 @@ export default function RequestsPage() {
     }
   };
 
-  // ── Borrow requests actions ──
+// ── Borrow requests actions ──
   const handleApprove = async (request: any) => {
     if (!window.confirm(`Approve borrow request for "${request.book?.title}"?`)) return;
+    if (actionLoadingId) return; // prevent double-click spam
+    setActionLoadingId(request.id);
     try {
       const res = await api.approveRequest(request.id);
       if (res.success) {
         setSuccessMsg("Borrow request approved");
         loadRequests();
         setTimeout(() => setSuccessMsg(""), 4000);
+      } else if (res.rateLimited) {
+        setError("You're moving too fast. Please wait a moment and try again.");
       } else {
         setError(res.error || "Failed to approve request");
       }
     } catch {
       setError("Failed to approve request");
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -400,26 +432,29 @@ export default function RequestsPage() {
                               {!isLibrarian && txn.status === "ACTIVE" && (
                                 <button
                                   onClick={() => handleReturn(txn)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                  disabled={actionLoadingId !== null}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Return
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> {actionLoadingId === txn.id ? "Returning..." : "Return"}
                                 </button>
                               )}
                               {!isLibrarian && txn.status === "OVERDUE" && !txn.finePaid && txn.fineAmount > 0 && (
                                 <button
                                   onClick={() => handlePayFine(txn)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-red-500/15 hover:bg-red-500/25 text-red-400 text-xs font-medium rounded-lg transition-colors"
+                                  disabled={actionLoadingId !== null}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-red-500/15 hover:bg-red-500/25 text-red-400 text-xs font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                  <Coins className="w-3.5 h-3.5" /> Pay Fine
+                                  <Coins className="w-3.5 h-3.5" /> {actionLoadingId === txn.id ? "Paying..." : "Pay Fine"}
                                 </button>
                               )}
                               {isLibrarian && txn.status === "ACTIVE" && (
                                 <>
                                   <button
                                     onClick={() => handleReturn(txn)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                    disabled={actionLoadingId !== null}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                   >
-                                    <CheckCircle2 className="w-3.5 h-3.5" /> Return
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> {actionLoadingId === txn.id ? "Returning..." : "Return"}
                                   </button>
                                   <button
                                     onClick={() => openMissingModal(txn)}
@@ -586,9 +621,10 @@ export default function RequestsPage() {
                                 <>
                                   <button
                                     onClick={() => handleApprove(req)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                    disabled={actionLoadingId !== null}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                   >
-                                    <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> {actionLoadingId === req.id ? "Approving..." : "Approve"}
                                   </button>
                                   <button
                                     onClick={() => openRejectModal(req)}

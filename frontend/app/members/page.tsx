@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
+import { useDebounce } from "@/lib/useDebounce";
 import Sidebar from "@/components/Sidebar";
 import {
   Plus,
@@ -28,6 +29,10 @@ export default function MembersPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [successMsg, setSuccessMsg] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const debouncedSearch = useDebounce(search, 300);
+  const debouncedStatus = useDebounce(statusFilter, 300);
 
   const isLibrarian = user?.role === "LIBRARIAN";
 
@@ -39,8 +44,8 @@ export default function MembersPage() {
         page: String(currentPage),
         limit: String(PAGE_SIZE),
       };
-      if (search) params.search = search;
-      if (statusFilter) params.isActive = statusFilter === "active" ? "true" : "false";
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (debouncedStatus) params.isActive = debouncedStatus === "active" ? "true" : "false";
 
 const [usersRes, statsRes] = await Promise.all([
         api.get<any>("/auth/users?" + new URLSearchParams(params).toString()),
@@ -50,6 +55,8 @@ const [usersRes, statsRes] = await Promise.all([
       if (usersRes.success) {
         setMembers((usersRes.data as any[]) || []);
         setTotal(usersRes.meta?.total ?? ((usersRes.data as any[]) || []).length);
+      } else if (usersRes.rateLimited) {
+        setError("You're moving too fast. Please wait a moment and try again.");
       }
 
       if (statsRes.success && statsRes.data?.overdueByUser) {
@@ -64,7 +71,7 @@ const [usersRes, statsRes] = await Promise.all([
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, currentPage]);
+  }, [debouncedSearch, debouncedStatus, currentPage]);
 
   useEffect(() => {
     if (user && user.role !== "LIBRARIAN") {
@@ -77,21 +84,27 @@ const [usersRes, statsRes] = await Promise.all([
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter]);
+  }, [debouncedSearch, debouncedStatus]);
 
 const handleDelete = async (member: any) => {
     if (!window.confirm(`Delete member "${member.firstName} ${member.lastName}"? This action cannot be undone.`)) return;
+    if (deletingId) return; // prevent double-click spam
+    setDeletingId(member.id);
     try {
       const res = await api.delete(`/auth/users/${member.id}`);
       if (res.success) {
         setSuccessMsg("Member deleted successfully");
         loadData();
         setTimeout(() => setSuccessMsg(""), 4000);
+      } else if (res.rateLimited) {
+        setError("You're moving too fast. Please wait a moment and try again.");
       } else {
         setError(res.error || "Failed to delete member");
       }
     } catch {
       setError("Failed to delete member");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -246,10 +259,11 @@ const handleDelete = async (member: any) => {
                             </button>
                             <button
                               onClick={() => handleDelete(m)}
-                              className="p-2 rounded-lg text-zinc-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                              disabled={deletingId !== null}
+                              className="p-2 rounded-lg text-zinc-400 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                               aria-label="Delete"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className={`w-4 h-4 ${deletingId === m.id ? "animate-spin" : ""}`} />
                             </button>
                           </div>
                         </td>
