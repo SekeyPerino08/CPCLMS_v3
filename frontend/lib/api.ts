@@ -300,8 +300,22 @@ async createBorrowRequest(data: {
     return this.get(`/transactions/requests${query}`);
   }
 
+  async getBorrowRequest(id: string): Promise<ApiResponse<any>> {
+    return this.get(`/transactions/requests/${id}`);
+  }
+
   async approveRequest(id: string): Promise<ApiResponse<any>> {
     return this.put(`/transactions/requests/${id}/approve`);
+  }
+
+  // Generate a unique QR code for a pending borrow request (librarian).
+  async generateRequestQR(id: string): Promise<ApiResponse<any>> {
+    return this.get(`/transactions/requests/${id}/qr`);
+  }
+
+  // Confirm approval after the borrower scans the QR on their phone.
+  async approveByQRCode(requestId: string, token: string): Promise<ApiResponse<any>> {
+    return this.post('/transactions/requests/approve-qr', { requestId, token });
   }
 
   async rejectRequest(id: string, reason: string): Promise<ApiResponse<any>> {

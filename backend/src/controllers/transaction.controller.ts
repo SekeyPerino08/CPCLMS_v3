@@ -66,6 +66,39 @@ export const rejectRequest = asyncHandler(
   }
 );
 
+export const getBorrowRequest = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const request = await transactionService.getBorrowRequest(req.params.id);
+    sendSuccess(res, request);
+  }
+);
+
+// Generate a unique QR code for a pending borrow request (librarian only).
+// The QR encodes a deep link that the borrower scans to confirm approval.
+export const generateRequestQR = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const result = await transactionService.generateApprovalQR(
+      req.params.id,
+      req.user!.userId
+    );
+    sendSuccess(res, result, 'Approval QR code generated');
+  }
+);
+
+// Confirm approval after the borrower scans the QR on their phone.
+// Public deep-link endpoint — authorized by the embedded token, not a role.
+export const approveByQRCode = asyncHandler(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { requestId, token } = req.body;
+    if (!requestId || !token) {
+      res.status(400).json({ success: false, error: 'requestId and token are required' });
+      return;
+    }
+    const result = await transactionService.approveByQRCode(requestId, token);
+    sendSuccess(res, result, 'Borrow request approved');
+  }
+);
+
 // ============================================================
 // Borrow Transactions
 // ============================================================

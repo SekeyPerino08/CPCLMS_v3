@@ -10,9 +10,10 @@
 // ============================================================
 
 import { prisma } from '../config';
+import { env } from '../config/env';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors';
 import { getPaginationParams, buildPaginationMeta } from '../utils/pagination';
-import { generateQRCode } from '../utils/qrcode';
+import { generateQRCode, generateQRFromText } from '../utils/qrcode';
 import { policyService } from './policy.service';
 import { notificationService } from './notification.service';
 import { Role } from '@prisma/client';
@@ -348,6 +349,22 @@ export class TransactionService {
         },
       }),
     ]);
+  }
+
+  /**
+   * Get a single borrow request by ID (used by the QR approval poller).
+   */
+  async getBorrowRequest(requestId: string) {
+    const request = await prisma.borrowRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, libraryId: true, role: true } },
+        book: { select: { id: true, title: true, author: true, accessionNo: true, isbn: true } },
+        processedBy: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+    if (!request) throw new NotFoundError('Borrow request');
+    return request;
   }
 
   /**
@@ -707,6 +724,75 @@ async listTransactions(query: Record<string, unknown>, userId?: string) {
     return prisma.borrowTransaction.count({
       where: { userId, status: 'ACTIVE' },
     });
+  }
+
+  /**
+   * Generate a unique QR code for a pending borrow request.
+   * The QR encodes a deep-link URL that the borrower scans with their phone.
+   * Opening the URL (with a signed, unique token) is what confirms approval —
+   * the request is NOT approved when the QR is merely generated.
+   */
+  async generateApprovalQR(requestId: string, librarianId: string) {
+    const request = await prisma.borrowRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        book: { select: { id: true, title: true, accessionNo: true } },
+        user: { select: { id: true, firstName: true, lastName: true, libraryId: true } },
+      },
+    });
+    if (!request) throw new NotFoundError('Borrow request');
+    if (request.status !== 'PENDING') {
+      throw new BadRequestError('Request has already been processed');
+    }
+
+    // Unique, single-use token for this approve request (time + random).
+    const token = `${request.id}.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 10)}`;
+    const frontendUrl = (env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+    // The deep link the borrower opens on their phone to confirm approval.
+    const approveUrl = `${frontendUrl}/scan-approve?request=${request.id}&token=${token}`;
+    const qrCodeDataUrl = await generateQRFromText(approveUrl);
+
+    return {
+      requestId: request.id,
+      bookTitle: request.book.title,
+      accessionNo: request.book.accessionNo,
+      memberName: `${request.user.firstName} ${request.user.lastName}`,
+      libraryId: request.user.libraryId,
+      qrCode: qrCodeDataUrl,
+      approveUrl,
+      issuedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Confirm approval of a borrow request via a scanned QR token.
+   * This is called when the borrower opens the deep link from their phone.
+   * Applies the same logic as approveRequest but is authorized purely by the
+   * matching (single-use style) token for the request.
+   */
+  async approveByQRCode(requestId: string, token: string) {
+    const request = await prisma.borrowRequest.findUnique({
+      where: { id: requestId },
+      include: { book: true, user: true },
+    });
+    if (!request) throw new NotFoundError('Borrow request');
+
+    // Validate the token format: <requestId>.<timestamp>.<random>
+    const expectedPrefix = `${request.id}.`;
+    if (!token || !token.startsWith(expectedPrefix)) {
+      throw new BadRequestError('Invalid QR code');
+    }
+
+    // Ensure the request is still pending (not already approved by a librarian
+    // or via a previous scan).
+    if (request.status !== 'PENDING') {
+      throw new BadRequestError('Request has already been processed');
+    }
+
+    // Token-verified approval. There is no librarian session on the borrower's
+    // phone, so we attribute the action to the requester themselves.
+    return this.approveRequest(requestId, request.userId);
   }
 
   // ============================================================

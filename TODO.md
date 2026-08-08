@@ -1,3 +1,21 @@
+# TODO — QR-Based Approval Flow
+
+## Backend
+- [x] 1. Fix `approveByQRCode` in `backend/src/services/transaction.service.ts` (was corrupted mid-method — Reservations section inserted inside; now properly closed and calls `this.approveRequest`)
+- [x] 2. Add `getBorrowRequest` handler in `backend/src/controllers/transaction.controller.ts` (single borrow request by id)
+- [x] 3. Add `GET /requests/:id` route in `backend/src/routes/transaction.routes.ts` wired to the handler
+
+## Frontend
+- [x] 4. (Existing) `frontend/components/QRApprovalModal.tsx` polls `api.getBorrowRequest(id)` every 3s and auto-closes on `APPROVED`
+- [x] 5. Wire `QRApprovalModal` into `frontend/app/requests/page.tsx`: Approve button opens the QR modal (`handleApprove` → `setQrApprovalTarget`), rendered with `onClose`/`onApproved` callbacks
+
+## Verification
+- [x] 6. Confirmed `api.getBorrowRequest(id)`, `api.generateRequestQR(id)`, `api.getBorrowRequests` exist in `frontend/lib/api.ts`
+- [x] 7. Confirmed `QRApprovalModal` props match usage (`request`, `onClose`, `onApproved`)
+- [ ] 8. Runtime test: Approve via QR → borrower scans → request becomes APPROVED → modal auto-closes
+
+---
+
 # TODO — In-System Notification Feature
 
 ## Backend

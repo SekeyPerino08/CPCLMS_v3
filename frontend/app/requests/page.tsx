@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
 import { useDebounce } from "@/lib/useDebounce";
 import Sidebar from "@/components/Sidebar";
+import { QRApprovalModal } from "@/components/QRApprovalModal";
 import {
   Search,
   BookOpen,
@@ -15,6 +16,7 @@ import {
   Clock,
   Coins,
   AlertTriangle,
+  QrCode,
 } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -86,6 +88,9 @@ export default function RequestsPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [rejectLoading, setRejectLoading] = useState(false);
   const [rejectError, setRejectError] = useState("");
+
+  // QR Approval modal state (librarian only)
+  const [qrApprovalTarget, setQrApprovalTarget] = useState<any>(null);
 
   // ── Load borrowed books (transactions) ──
   const loadTransactions = useCallback(async () => {
@@ -232,26 +237,20 @@ export default function RequestsPage() {
   };
 
 // ── Borrow requests actions ──
-  const handleApprove = async (request: any) => {
-    if (!window.confirm(`Approve borrow request for "${request.book?.title}"?`)) return;
-    if (actionLoadingId) return; // prevent double-click spam
-    setActionLoadingId(request.id);
-    try {
-      const res = await api.approveRequest(request.id);
-      if (res.success) {
-        setSuccessMsg("Borrow request approved");
-        loadRequests();
-        setTimeout(() => setSuccessMsg(""), 4000);
-      } else if (res.rateLimited) {
-        setError("You're moving too fast. Please wait a moment and try again.");
-      } else {
-        setError(res.error || "Failed to approve request");
-      }
-    } catch {
-      setError("Failed to approve request");
-    } finally {
-      setActionLoadingId(null);
-    }
+  // The Approve action now opens a QR approval modal instead of approving
+  // directly. The request only becomes APPROVED once the borrower scans the
+  // QR (deep link) on their phone.
+  const handleApprove = (request: any) => {
+    setQrApprovalTarget(request);
+  };
+
+  const handleQRApproved = (request: any) => {
+    setSuccessMsg(
+      `Borrow request for "${request?.book?.title || "this book"}" approved`
+    );
+    setQrApprovalTarget(null);
+    loadRequests();
+    setTimeout(() => setSuccessMsg(""), 4000);
   };
 
   const openRejectModal = (request: any) => {
@@ -621,10 +620,9 @@ export default function RequestsPage() {
                                 <>
                                   <button
                                     onClick={() => handleApprove(req)}
-                                    disabled={actionLoadingId !== null}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition-colors"
                                   >
-                                    <CheckCircle2 className="w-3.5 h-3.5" /> {actionLoadingId === req.id ? "Approving..." : "Approve"}
+                                    <QrCode className="w-3.5 h-3.5" /> Approve via QR
                                   </button>
                                   <button
                                     onClick={() => openRejectModal(req)}
@@ -752,7 +750,7 @@ export default function RequestsPage() {
         </div>
       )}
 
-      {/* Declare Missing confirmation modal (librarian only) */}
+{/* Declare Missing confirmation modal (librarian only) */}
       {missingTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMissingTarget(null)} />
@@ -804,6 +802,16 @@ export default function RequestsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* QR Approval modal (librarian only) — shows a unique QR the borrower
+          scans with their phone to confirm and approve the request. */}
+      {qrApprovalTarget && (
+        <QRApprovalModal
+          request={qrApprovalTarget}
+          onClose={() => setQrApprovalTarget(null)}
+          onApproved={() => handleQRApproved(qrApprovalTarget)}
+        />
       )}
     </div>
   );
