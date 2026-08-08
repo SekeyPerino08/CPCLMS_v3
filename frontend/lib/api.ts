@@ -11,6 +11,8 @@ export interface ApiResponse<T = unknown> {
   message?: string;
   data?: T;
   error?: string;
+  rateLimited?: boolean;
+  retryAfterMs?: number;
   meta?: {
     page: number;
     limit: number;
@@ -26,6 +28,13 @@ export interface AuthTokens {
 
 class ApiClient {
   private baseUrl: string;
+
+  // In-flight request deduplication map (keyed by method + endpoint + body)
+  private inflight = new Map<string, Promise<ApiResponse<any>>>();
+  // Client-side rate-limit cooldown: timestamp until which requests are suppressed
+  private rateLimitUntil = 0;
+  // How long to suppress requests after receiving a 429 (ms)
+  private static readonly RATE_LIMIT_COOLDOWN_MS = 10000;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -68,32 +77,96 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers,
-    });
-
-    const data: ApiResponse<T> = await response.json();
-
-    // If unauthorized, try refresh token
-    if (response.status === 401 && this.getRefreshToken()) {
-      const refreshed = await this.refreshToken();
-      if (refreshed) {
-        headers['Authorization'] = `Bearer ${this.getToken()}`;
-        const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
-          ...options,
-          headers,
-        });
-        return retryResponse.json();
-      }
-      // Refresh failed
-      this.clearTokens();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
-      }
+    // Client-side cooldown: if we recently received a 429, short-circuit
+    // so we don't keep hammering the server and trigger the limiter again.
+    const remainingCooldown = this.rateLimitUntil - Date.now();
+    if (remainingCooldown > 0) {
+      return {
+        success: false,
+        error: 'Too many requests, please try again later.',
+        rateLimited: true,
+        retryAfterMs: remainingCooldown,
+      } as ApiResponse<T>;
     }
 
-    return data;
+    const method = options.method || 'GET';
+    const body = options.body ? String(options.body) : '';
+    // Deduplicate identical concurrent requests so we never fire the same
+    // GET/POST more than once at a time (keyed by method + endpoint + body).
+    const cacheKey = `${method}:${endpoint}:${body}`;
+    if (this.inflight.has(cacheKey)) {
+      return this.inflight.get(cacheKey) as Promise<ApiResponse<T>>;
+    }
+
+    const promise = this.doFetch<T>(endpoint, options, headers, cacheKey);
+    this.inflight.set(cacheKey, promise);
+    return promise;
+  }
+
+  private async doFetch<T>(
+    endpoint: string,
+    options: RequestInit,
+    headers: Record<string, string>,
+    cacheKey: string
+  ): Promise<ApiResponse<T>> {
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      // 429 — rate limited. Record a cooldown so the UI can show a message
+      // and we suppress repeated identical calls for a short window.
+      if (response.status === 429) {
+        this.rateLimitUntil = Date.now() + ApiClient.RATE_LIMIT_COOLDOWN_MS;
+        let data: ApiResponse<T>;
+        try {
+          data = await response.json();
+        } catch {
+          data = {} as ApiResponse<T>;
+        }
+        return {
+          ...data,
+          success: false,
+          rateLimited: true,
+          retryAfterMs: ApiClient.RATE_LIMIT_COOLDOWN_MS,
+          error: data.error || 'Too many requests, please try again later.',
+        } as ApiResponse<T>;
+      }
+
+      let data: ApiResponse<T>;
+      try {
+        data = await response.json();
+      } catch {
+        data = { success: false, error: 'Unexpected server response' } as ApiResponse<T>;
+      }
+
+      // If unauthorized, try refresh token
+      if (response.status === 401 && this.getRefreshToken()) {
+        const refreshed = await this.refreshToken();
+        if (refreshed) {
+          headers['Authorization'] = `Bearer ${this.getToken()}`;
+          const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
+            ...options,
+            headers,
+          });
+          try {
+            return await retryResponse.json();
+          } catch {
+            return { success: false, error: 'Unexpected server response' } as ApiResponse<T>;
+          }
+        }
+        // Refresh failed
+        this.clearTokens();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+      }
+
+      return data;
+    } finally {
+      this.inflight.delete(cacheKey);
+    }
   }
 
   async refreshToken(): Promise<boolean> {
@@ -118,12 +191,12 @@ class ApiClient {
     }
   }
 
-  async login(email: string, password: string): Promise<ApiResponse<{ user: any; accessToken: string; refreshToken: string }>> {
+  async login(identifier: string, password: string): Promise<ApiResponse<{ user: any; accessToken: string; refreshToken: string }>> {
     const response = await this.request<{ user: any; accessToken: string; refreshToken: string }>(
       '/auth/login',
       {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier, password }),
       }
     );
 
@@ -135,9 +208,10 @@ class ApiClient {
     return response;
   }
 
-  async register(data: {
+async register(data: {
     firstName: string;
     lastName: string;
+    libraryId: string;
     email: string;
     password: string;
     role?: string;
@@ -145,16 +219,13 @@ class ApiClient {
     yearSection?: string;
     phone?: string;
   }): Promise<ApiResponse<any>> {
-    const response = await this.request<any>('/auth/register', {
+const response = await this.request<any>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
 
-    if (response.success && response.data) {
-      this.setTokens(response.data.accessToken, response.data.refreshToken);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-    }
-
+    // Do NOT store tokens after registration. The user must log in
+    // manually with their new credentials on the login page.
     return response;
   }
 
@@ -178,9 +249,16 @@ class ApiClient {
     });
   }
 
-  async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+async put<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  async patch<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
     });
   }
@@ -210,8 +288,11 @@ class ApiClient {
     return this.get(`/transactions${query}`);
   }
 
-  async createBorrowRequest(data: { bookId: string; notes?: string; dueDate?: string }): Promise<ApiResponse<any>> {
-    return this.post('/transactions/requests', data);
+async createBorrowRequest(data: {
+    bookIds: string[];
+    notes?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.post('/transactions/requests', { bookIds: data.bookIds, notes: data.notes });
   }
 
   async getBorrowRequests(params?: Record<string, string>): Promise<ApiResponse<any[]>> {
@@ -219,34 +300,38 @@ class ApiClient {
     return this.get(`/transactions/requests${query}`);
   }
 
+  async getBorrowRequest(id: string): Promise<ApiResponse<any>> {
+    return this.get(`/transactions/requests/${id}`);
+  }
+
   async approveRequest(id: string): Promise<ApiResponse<any>> {
     return this.put(`/transactions/requests/${id}/approve`);
+  }
+
+  // Generate a unique QR code for a pending borrow request (librarian).
+  async generateRequestQR(id: string): Promise<ApiResponse<any>> {
+    return this.get(`/transactions/requests/${id}/qr`);
+  }
+
+  // Confirm approval after the borrower scans the QR on their phone.
+  async approveByQRCode(requestId: string, token: string): Promise<ApiResponse<any>> {
+    return this.post('/transactions/requests/approve-qr', { requestId, token });
   }
 
   async rejectRequest(id: string, reason: string): Promise<ApiResponse<any>> {
     return this.put(`/transactions/requests/${id}/reject`, { reason });
   }
 
-  async returnBook(id: string, qrCode?: string): Promise<ApiResponse<any>> {
+async returnBook(id: string, qrCode?: string): Promise<ApiResponse<any>> {
     return this.put(`/transactions/${id}/return`, { qrCode });
   }
 
-  async payFine(id: string, amount: number): Promise<ApiResponse<any>> {
+  async declareMissing(id: string, reason?: string): Promise<ApiResponse<any>> {
+    return this.put(`/transactions/${id}/missing`, { reason });
+  }
+
+async payFine(id: string, amount: number): Promise<ApiResponse<any>> {
     return this.put(`/transactions/${id}/pay-fine`, { amount });
-  }
-
-  // Reservations
-  async createReservation(data: { bookId: string }): Promise<ApiResponse<any>> {
-    return this.post('/reservations', data);
-  }
-
-  async getReservations(params?: Record<string, string>): Promise<ApiResponse<any[]>> {
-    const query = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.get(`/reservations${query}`);
-  }
-
-  async cancelReservation(id: string): Promise<ApiResponse<any>> {
-    return this.put(`/reservations/${id}/cancel`);
   }
 
   // Notifications
@@ -267,9 +352,13 @@ class ApiClient {
     return this.put('/notifications/mark-all-read');
   }
 
-  // Analytics
+// Analytics
   async getDashboardStats(): Promise<ApiResponse<any>> {
     return this.get('/analytics/dashboard');
+  }
+
+  async getMyDashboardStats(): Promise<ApiResponse<any>> {
+    return this.get('/analytics/my-dashboard');
   }
 
   async getMonthlyTrends(months?: number): Promise<ApiResponse<any>> {

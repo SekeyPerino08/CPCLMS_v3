@@ -10,17 +10,18 @@ const RoleValues = ['STUDENT', 'FACULTY', 'LIBRARIAN'] as const;
 
 export const loginSchema = z.object({
   body: z.object({
-    email: z
+    identifier: z
       .string()
-      .email('Invalid email address')
-      .transform((email) => email.toLowerCase().trim()),
+      .min(1, 'ID Number or email is required')
+      .trim()
+      .transform((val) => val.toLowerCase()),
     password: z.string().min(1, 'Password is required'),
   }),
 });
 
 export const registerSchema = z.object({
   body: z.object({
-    firstName: z
+firstName: z
       .string()
       .min(1, 'First name is required')
       .max(50)
@@ -30,10 +31,20 @@ export const registerSchema = z.object({
       .min(1, 'Last name is required')
       .max(50)
       .transform((s) => s.trim()),
-    email: z
+    libraryId: z
+      .string()
+      .min(1, 'ID Number is required')
+      .max(20)
+      .transform((s) => s.trim()),
+email: z
       .string()
       .email('Invalid email address')
       .transform((email) => email.toLowerCase().trim()),
+    role: z
+      .enum(RoleValues, {
+        errorMap: () => ({ message: 'Role must be STUDENT, FACULTY, or LIBRARIAN' }),
+      })
+      .optional(),
     password: z
       .string()
       .min(8, 'Password must be at least 8 characters')

@@ -22,18 +22,21 @@ async function main() {
   await prisma.policy.deleteMany();
   await prisma.user.deleteMany();
 
-  // ============================================================
+// ============================================================
   // 1. USERS
   // ============================================================
   const hashedPassword = await bcrypt.hash('password123', 10);
+  const librarian123 = await bcrypt.hash('librarian123', 10);
+  const student123 = await bcrypt.hash('student123', 10);
 
+  // ── Demo Librarian (ID: 2025-0001 / librarian123) ──────────
   const librarian1 = await prisma.user.create({
     data: {
-      libraryId: 'LIB-2024-0001',
+      libraryId: '2025-0001',
       firstName: 'Maria',
       lastName: 'Santos',
       email: 'maria.santos@library.edu',
-      password: hashedPassword,
+      password: librarian123,
       role: Role.LIBRARIAN,
       department: 'Library Services',
       phone: '+63-912-345-6789',
@@ -66,13 +69,14 @@ async function main() {
     },
   });
 
+// ── Demo Student (ID: 2025-1001 / student123) ──────────────
   const student1 = await prisma.user.create({
     data: {
-      libraryId: 'LIB-2024-0004',
+      libraryId: '2025-1001',
       firstName: 'Carlos',
       lastName: 'Garcia',
       email: 'carlos.garcia@student.edu',
-      password: hashedPassword,
+      password: student123,
       role: Role.STUDENT,
       department: 'Computer Science',
       yearSection: '3-BSIT',
@@ -553,7 +557,12 @@ async function main() {
   console.log('');
   console.log('🎉 Database seeding complete!');
   console.log('');
-  console.log('📋 Sample Accounts (password: password123 for all):');
+console.log('📋 Demo Accounts:');
+  console.log('   Librarian: 2025-0001 / librarian123');
+  console.log('   Student:   2025-1001 / student123');
+  console.log('   Guest:     Use "Login as Guest" button');
+  console.log('');
+  console.log('📋 Other Seed Accounts (password: password123 for all):');
   console.log('   Librarian: maria.santos@library.edu');
   console.log('   Librarian: juan.cruz@library.edu');
   console.log('   Faculty:   ana.reyes@university.edu');

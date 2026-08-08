@@ -18,6 +18,36 @@ export interface EmailPayload {
 
 export class NotificationService {
   /**
+   * Create a notification for every librarian in the system.
+   * Used for events the librarian must act on (e.g. new borrow request, book return).
+   */
+  async notifyAllLibrarians(
+    type: NotificationType,
+    title: string,
+    message?: string,
+    link?: string
+  ): Promise<number> {
+    const librarians = await prisma.user.findMany({
+      where: { role: 'LIBRARIAN', isActive: true },
+      select: { id: true },
+    });
+
+    if (librarians.length === 0) return 0;
+
+    const result = await prisma.notification.createMany({
+      data: librarians.map((lib) => ({
+        userId: lib.id,
+        type,
+        title,
+        message,
+        link,
+      })),
+    });
+
+    return result.count;
+  }
+
+  /**
    * Create an in-app notification
    */
   async createNotification(

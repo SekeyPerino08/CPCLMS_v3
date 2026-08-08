@@ -22,10 +22,15 @@ export class AuthService {
   // ────────────────────────────────────────
   //  PUBLIC: LOGIN
   // ────────────────────────────────────────
-  async login(email: string, password: string, ipAddress?: string) {
-    const user = await prisma.user.findUnique({ where: { email } });
+  async login(identifier: string, password: string, ipAddress?: string) {
+    const normalized = (identifier || '').trim().toLowerCase();
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: normalized }, { libraryId: normalized }],
+      },
+    });
     if (!user) {
-      throw new UnauthorizedError('Invalid email or password');
+      throw new UnauthorizedError('Invalid ID Number or password');
     }
     if (!user.isActive) {
       throw new UnauthorizedError(
@@ -35,7 +40,7 @@ export class AuthService {
 
     const passwordValid = await bcrypt.compare(password, user.password);
     if (!passwordValid) {
-      throw new UnauthorizedError('Invalid email or password');
+      throw new UnauthorizedError('Invalid ID Number or password');
     }
 
     // Generate token pair
@@ -56,25 +61,31 @@ export class AuthService {
   // ────────────────────────────────────────
   //  PUBLIC: REGISTER (self-registration → STUDENT role)
   // ────────────────────────────────────────
-  async register(input: RegisterInput, ipAddress?: string) {
-    const existing = await prisma.user.findUnique({
-      where: { email: input.email },
+async register(input: RegisterInput, ipAddress?: string) {
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: input.email }, { libraryId: input.libraryId }],
+      },
     });
     if (existing) {
-      throw new ConflictError('An account with this email already exists');
+      throw new ConflictError(
+        existing.email === input.email
+          ? 'An account with this email already exists'
+          : 'An account with this ID Number already exists'
+      );
     }
 
-    const libraryId = await this.generateLibraryId();
+    const libraryId = input.libraryId;
     const hashedPassword = await bcrypt.hash(input.password, 12);
 
-    const user = await prisma.user.create({
+const user = await prisma.user.create({
       data: {
         libraryId,
         firstName: input.firstName,
         lastName: input.lastName,
         email: input.email,
         password: hashedPassword,
-        role: 'STUDENT',
+        role: input.role || 'STUDENT',
         department: input.department,
         yearSection: input.yearSection,
         phone: input.phone,
@@ -338,9 +349,33 @@ export class AuthService {
     };
   }
 
-  // ────────────────────────────────────────
+// ────────────────────────────────────────
   //  TOGGLE USER ACTIVE STATUS (admin)
   // ────────────────────────────────────────
+  async deleteUser(targetUserId: string, adminId: string) {
+    if (targetUserId === adminId) {
+      throw new BadRequestError('You cannot delete your own account');
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!user) throw new NotFoundError('User');
+
+    // Delete related records in a single transaction
+    await prisma.$transaction([
+      prisma.refreshToken.deleteMany({ where: { userId: targetUserId } }),
+      prisma.activityLog.deleteMany({ where: { userId: targetUserId } }),
+      prisma.notification.deleteMany({ where: { userId: targetUserId } }),
+      prisma.borrowRequest.deleteMany({ where: { userId: targetUserId } }),
+      prisma.borrowRequest.deleteMany({ where: { processedById: targetUserId } }),
+      prisma.borrowTransaction.deleteMany({ where: { userId: targetUserId } }),
+      prisma.reservation.deleteMany({ where: { userId: targetUserId } }),
+      prisma.user.delete({ where: { id: targetUserId } }),
+    ]);
+
+    await this.logActivity(adminId, 'DELETE_USER', 'User', targetUserId);
+    return { id: targetUserId };
+  }
+
   async toggleUserStatus(targetUserId: string, adminId: string) {
     if (targetUserId === adminId) {
       throw new BadRequestError('You cannot deactivate your own account');

@@ -12,9 +12,9 @@ import { AuthenticatedRequest } from '../types';
  * POST /api/auth/login
  */
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { identifier, password } = req.body;
   const ipAddress = req.ip;
-  const result = await authService.login(email, password, ipAddress);
+  const result = await authService.login(identifier, password, ipAddress);
   sendSuccess(res, result, 'Login successful');
 });
 
@@ -88,6 +88,14 @@ export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res
 export const listUsers = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const result = await authService.listUsers(req.query as Record<string, unknown>);
   sendSuccess(res, result.users, undefined, 200, result.meta);
+});
+
+/**
+ * DELETE /api/auth/users/:id  (LIBRARIAN only)
+ */
+export const deleteUser = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const user = await authService.deleteUser(req.params.id, req.user!.userId);
+  sendSuccess(res, user, 'User deleted successfully');
 });
 
 /**

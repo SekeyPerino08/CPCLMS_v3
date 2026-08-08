@@ -30,6 +30,23 @@ export async function generateQRCode(payload: QRPayload): Promise<string> {
 }
 
 /**
+ * Generate a QR code from arbitrary plain text (e.g., a deep-link URL)
+ * @param text The text/data to encode
+ * @param width Desired pixel width
+ * @returns Base64 PNG data URL string
+ */
+export async function generateQRFromText(text: string, width = 300): Promise<string> {
+  return QRCode.toDataURL(text, {
+    width,
+    margin: 2,
+    color: {
+      dark: '#1a1a2e',
+      light: '#ffffff',
+    },
+  });
+}
+
+/**
  * Decode a QR code string back to payload
  * @param qrCodeData The base64 data URL or raw JSON string
  */

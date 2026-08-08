@@ -12,7 +12,10 @@ import { getPaginationParams, buildPaginationMeta } from '../utils/pagination';
 export const listActivityLogs = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { page, limit, skip, take } = getPaginationParams(req.query as Record<string, unknown>);
 
-  const where: any = {};
+const where: any = {};
+
+  // Exclude system-generated actions (token refresh, session checks, etc.)
+  const SYSTEM_ACTIONS = ['TOKEN_REFRESH', 'SESSION_CHECK', 'SYSTEM'];
 
   // Filter by user (librarian can see all, normal users see own)
   if (req.user!.role !== 'LIBRARIAN') {
@@ -21,8 +24,25 @@ export const listActivityLogs = asyncHandler(async (req: AuthenticatedRequest, r
     if (req.query.userId) where.userId = req.query.userId as string;
   }
 
-  if (req.query.action) where.action = req.query.action as string;
+  // Action filter (excludes system actions)
+  if (req.query.action) {
+    where.action = { equals: req.query.action as string, notIn: SYSTEM_ACTIONS };
+  } else {
+    where.action = { notIn: SYSTEM_ACTIONS };
+  }
   if (req.query.entity) where.entity = req.query.entity as string;
+
+  // Search by user name/id or action
+  if (req.query.search) {
+    const s = req.query.search as string;
+    where.OR = [
+      { action: { contains: s, mode: 'insensitive' } },
+      { entity: { contains: s, mode: 'insensitive' } },
+      { user: { firstName: { contains: s, mode: 'insensitive' } } },
+      { user: { lastName: { contains: s, mode: 'insensitive' } } },
+      { user: { libraryId: { contains: s, mode: 'insensitive' } } },
+    ];
+  }
 
   // Date range filter
   if (req.query.fromDate) {
