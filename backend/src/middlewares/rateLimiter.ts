@@ -6,44 +6,61 @@ import rateLimit from 'express-rate-limit';
 import { env } from '../config/env';
 
 /**
- * General API rate limiter
- * Limits requests per IP within a time window.
- *
- * In development, rate limiting is effectively disabled (very high
- * limits) to avoid blocking the frontend's token-refresh flow and
- * hot-reloads. In production, it uses RATE_LIMIT_WINDOW_MS and
- * RATE_LIMIT_MAX from the environment (defaults: 15 min / 100 req).
+ * General API rate limiter.
+ * Limits requests per authenticated user when available, otherwise per IP.
+ * In development, rate limiting is effectively disabled (very high limits)
+ * to avoid blocking the frontend during normal testing.
  */
-// If rate limiting is disabled, use a huge max so it never trips.
 const DISABLED_MAX = 1000000;
 
-export const apiLimiter = rateLimit({
-  windowMs: env.RATE_LIMIT_WINDOW_MS,
-  max: env.RATE_LIMIT_ENABLED
-    ? env.RATE_LIMIT_MAX
-    : DISABLED_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    error: 'Too many requests, please try again later.',
-  },
-});
+const getRequestKey = (req: any): string => {
+  const forwarded = req.headers['x-forwarded-for'];
+  const ip = typeof forwarded === 'string'
+    ? forwarded.split(',')[0].trim()
+    : Array.isArray(forwarded)
+      ? forwarded[0]
+      : req.ip || 'unknown';
+
+  const userId = req.user?.id || req.user?.libraryId || req.headers['x-user-id'];
+  return userId ? `user:${String(userId)}` : `ip:${String(ip)}`;
+};
+
+const buildLimiter = (windowMs: number, max: number, message: string) =>
+  rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: getRequestKey,
+    handler: (_req, res) => {
+      res.status(429).json({
+        success: false,
+        error: message,
+      });
+    },
+  });
+
+export const apiLimiter = buildLimiter(
+  env.RATE_LIMIT_WINDOW_MS,
+  env.RATE_LIMIT_ENABLED ? env.RATE_LIMIT_MAX : DISABLED_MAX,
+  'Too many requests. Please slow down and try again shortly.'
+);
 
 /**
- * Strict rate limiter for auth endpoints (login, register, refresh)
- * In development (or when RATE_LIMIT_ENABLED=false), allow many attempts.
- * In production, limits to AUTH_RATE_LIMIT_MAX requests per 15 min per IP.
+ * Strict rate limiter for auth endpoints (login, register, refresh).
  */
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: env.RATE_LIMIT_ENABLED
-    ? env.AUTH_RATE_LIMIT_MAX
-    : DISABLED_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    error: 'Too many authentication attempts, please try again later.',
-  },
-});
+export const authLimiter = buildLimiter(
+  15 * 60 * 1000,
+  env.RATE_LIMIT_ENABLED ? env.AUTH_RATE_LIMIT_MAX : DISABLED_MAX,
+  'Too many authentication attempts. Please wait a few minutes and try again.'
+);
+
+/**
+ * Stricter limiter for borrow actions such as creating requests,
+ * approving, rejecting, returning, and paying fines.
+ */
+export const borrowActionLimiter = buildLimiter(
+  5 * 60 * 1000,
+  env.RATE_LIMIT_ENABLED ? 20 : DISABLED_MAX,
+  'You are submitting requests too quickly. Please wait a moment and try again.'
+);

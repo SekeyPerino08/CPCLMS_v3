@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
+import { useDebounce } from "@/lib/useDebounce";
 import Sidebar from "@/components/Sidebar";
 import {
   Search,
@@ -52,6 +53,9 @@ export default function PoliciesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [successMsg, setSuccessMsg] = useState("");
 
+  const debouncedSearch = useDebounce(search, 350);
+  const debouncedCategory = useDebounce(categoryFilter, 350);
+
   // Add / Edit modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [editKey, setEditKey] = useState<string | null>(null);
@@ -89,7 +93,7 @@ export default function PoliciesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, categoryFilter]);
+  }, [debouncedSearch, debouncedCategory]);
 
   const getCategory = (key: string) => CATEGORY_MAP[key]?.label || "General";
   const getCategoryBadge = (key: string) => CATEGORY_MAP[key]?.badge || "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30";
@@ -97,10 +101,10 @@ export default function PoliciesPage() {
 
   const filtered = policies.filter((p) => {
     const matchesSearch =
-      !search ||
-      p.key.toLowerCase().includes(search.toLowerCase()) ||
-      (p.description || "").toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = !categoryFilter || getCategory(p.key) === categoryFilter;
+      !debouncedSearch ||
+      p.key.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      (p.description || "").toLowerCase().includes(debouncedSearch.toLowerCase());
+    const matchesCategory = !debouncedCategory || getCategory(p.key) === debouncedCategory;
     return matchesSearch && matchesCategory;
   });
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import api from '@/lib/api';
+import { useDebounce } from '@/lib/useDebounce';
 import Sidebar from '@/components/Sidebar';
 import {
   Plus,
@@ -39,6 +40,9 @@ export default function EBooksPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [successMsg, setSuccessMsg] = useState('');
 
+  const debouncedSearch = useDebounce(search, 400);
+  const debouncedCategory = useDebounce(categoryFilter, 400);
+
   const isLibrarian = user?.role === 'LIBRARIAN';
 
   const loadData = useCallback(async () => {
@@ -46,8 +50,8 @@ export default function EBooksPage() {
     setError('');
     try {
       const params: Record<string, string> = {};
-      if (search) params.search = search;
-      if (categoryFilter) params.categoryId = categoryFilter;
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (debouncedCategory) params.categoryId = debouncedCategory;
       const [ebooksRes, catsRes] = await Promise.all([
         api.getEBooks(params),
         api.getCategories(),
@@ -59,16 +63,18 @@ export default function EBooksPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, categoryFilter]);
+  }, [debouncedSearch, debouncedCategory]);
 
   useEffect(() => {
-    const timer = setTimeout(loadData, 300);
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 300);
     return () => clearTimeout(timer);
   }, [loadData]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, categoryFilter, ebooks.length]);
+  }, [debouncedSearch, debouncedCategory, ebooks.length]);
 
   const totalPages = Math.max(1, Math.ceil(ebooks.length / PAGE_SIZE));
   const paginatedEBooks = ebooks.slice(
