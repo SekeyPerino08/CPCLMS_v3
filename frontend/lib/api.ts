@@ -4,7 +4,9 @@
 // - Provides typed request/response methods
 // ============================================================
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+  ? `${window.location.protocol}//${window.location.host}/api`
+  : 'http://localhost:4000/api');
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
