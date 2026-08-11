@@ -27,6 +27,7 @@ export class TransactionService {
    * Maximum number of books allowed per transaction / request.
    */
   static readonly MAX_BOOKS_PER_TRANSACTION = 3;
+  static readonly QR_TOKEN_EXPIRY_MS = 1000 * 60 * 60 * 24; // 24 hours
 
   /**
    * Create borrow request(s)
@@ -778,20 +779,33 @@ async listTransactions(query: Record<string, unknown>, userId?: string) {
     });
     if (!request) throw new NotFoundError('Borrow request');
 
-    // Validate the token format: <requestId>.<timestamp>.<random>
     const expectedPrefix = `${request.id}.`;
     if (!token || !token.startsWith(expectedPrefix)) {
       throw new BadRequestError('Invalid QR code');
     }
 
-    // Ensure the request is still pending (not already approved by a librarian
-    // or via a previous scan).
+    const tokenParts = token.split('.');
+    if (tokenParts.length < 3) {
+      throw new BadRequestError('Invalid QR code');
+    }
+
+    const tokenTimestamp = parseInt(tokenParts[1], 36);
+    if (Number.isNaN(tokenTimestamp)) {
+      throw new BadRequestError('Invalid QR code');
+    }
+
+    const ageMs = Date.now() - tokenTimestamp;
+    if (ageMs > TransactionService.QR_TOKEN_EXPIRY_MS) {
+      throw new BadRequestError('QR code has expired. Please ask the librarian for a new one.');
+    }
+    if (tokenTimestamp > Date.now() + 1000 * 60 * 5) {
+      throw new BadRequestError('Invalid QR code');
+    }
+
     if (request.status !== 'PENDING') {
       throw new BadRequestError('Request has already been processed');
     }
 
-    // Token-verified approval. There is no librarian session on the borrower's
-    // phone, so we attribute the action to the requester themselves.
     return this.approveRequest(requestId, request.userId);
   }
 

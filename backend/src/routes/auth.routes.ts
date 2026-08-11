@@ -10,6 +10,7 @@ import { validate } from '../middlewares/validate';
 import {
   loginSchema,
   registerSchema,
+  updateProfileSchema,
   createUserSchema,
   changePasswordSchema,
   refreshTokenSchema,
@@ -25,6 +26,12 @@ router.post('/refresh', authLimiter, validate(refreshTokenSchema), authControlle
 
 // ─── Authenticated Routes ────────────────────────────────
 router.get('/me', authenticate, authController.getProfile);
+router.put(
+  '/me',
+  authenticate,
+  validate(updateProfileSchema),
+  authController.updateProfile
+);
 router.put(
   '/change-password',
   authenticate,

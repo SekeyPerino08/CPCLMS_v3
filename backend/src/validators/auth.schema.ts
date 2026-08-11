@@ -21,7 +21,7 @@ export const loginSchema = z.object({
 
 export const registerSchema = z.object({
   body: z.object({
-firstName: z
+    firstName: z
       .string()
       .min(1, 'First name is required')
       .max(50)
@@ -36,7 +36,7 @@ firstName: z
       .min(1, 'ID Number is required')
       .max(20)
       .transform((s) => s.trim()),
-email: z
+    email: z
       .string()
       .email('Invalid email address')
       .transform((email) => email.toLowerCase().trim()),
@@ -52,6 +52,51 @@ email: z
     department: z.string().optional(),
     yearSection: z.string().optional(),
     phone: z.string().optional(),
+  }),
+});
+
+export const updateProfileSchema = z.object({
+  body: z.object({
+    firstName: z
+      .string()
+      .min(1, 'First name is required')
+      .max(50)
+      .transform((s) => s.trim()),
+    lastName: z
+      .string()
+      .min(1, 'Last name is required')
+      .max(50)
+      .transform((s) => s.trim()),
+    libraryId: z
+      .string()
+      .min(1, 'ID Number is required')
+      .max(20)
+      .transform((s) => s.trim()),
+    email: z
+      .string()
+      .email('Invalid email address')
+      .transform((email) => email.toLowerCase().trim()),
+    phone: z
+      .string()
+      .optional()
+      .transform((s) => (s ? s.trim() : undefined))
+      .refine((val) => !val || /^\+?[\d\s-]{7,15}$/.test(val), {
+        message: 'Invalid phone number format',
+      }),
+    department: z
+      .string()
+      .optional()
+      .transform((s) => (s ? s.trim() : undefined)),
+    yearSection: z
+      .string()
+      .optional()
+      .transform((s) => (s ? s.trim() : undefined)),
+    avatar: z
+      .string()
+      .optional()
+      .refine((val) => !val || /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(val), {
+        message: 'Avatar must be a valid JPG or PNG image data URL',
+      }),
   }),
 });
 
@@ -113,6 +158,7 @@ export const logoutSchema = z.object({
 // Types
 export type LoginInput = z.infer<typeof loginSchema>['body'];
 export type RegisterInput = z.infer<typeof registerSchema>['body'];
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>['body'];
 export type CreateUserInput = z.infer<typeof createUserSchema>['body'];
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>['body'];
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>['body'];

@@ -295,6 +295,27 @@ const user = await prisma.user.create({
     return this.sanitizeUser(user);
   }
 
+  async updateProfile(userId: string, input: { firstName: string; lastName: string; phone?: string; department?: string; yearSection?: string; avatar?: string }) {
+    const data: Record<string, unknown> = {
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phone: input.phone ?? null,
+      department: input.department ?? null,
+      yearSection: input.yearSection ?? null,
+    };
+
+    if (input.avatar !== undefined) {
+      data.avatar = input.avatar || null;
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+
+    return this.sanitizeUser(updated);
+  }
+
   // ────────────────────────────────────────
   //  LIST USERS (admin)
   // ────────────────────────────────────────
