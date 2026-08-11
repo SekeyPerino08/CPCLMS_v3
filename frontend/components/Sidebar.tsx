@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 import {
   LayoutDashboard,
   BookOpen,
@@ -14,7 +15,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-const navItems = [
+const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   {
     label: "Books",
@@ -31,6 +32,7 @@ const navItems = [
 ];
 
 export default function Sidebar() {
+  const { user } = useAuth();
   const pathname = usePathname();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>(() => {
     // Auto-open parent if a child route is active on first render
@@ -41,6 +43,21 @@ export default function Sidebar() {
       pathname.startsWith("/ebooks/");
     return { Books: booksActive };
   });
+
+  const role = user?.role || "STUDENT";
+  const navItems = baseNavItems
+    .filter((item) => {
+      if (role !== "LIBRARIAN" && item.href === "/members") {
+        return false;
+      }
+      return true;
+    })
+    .map((item) => {
+      if (item.href === "/policies") {
+        return { ...item, label: role === "LIBRARIAN" ? "Policies" : "About" };
+      }
+      return item;
+    });
 
   const toggleMenu = (label: string) => {
     setOpenMenus((prev) => ({ ...prev, [label]: !prev[label] }));

@@ -74,6 +74,14 @@ export const getProfile = asyncHandler(async (req: AuthenticatedRequest, res: Re
 });
 
 /**
+ * PUT /api/auth/me
+ */
+export const updateProfile = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const user = await authService.updateProfile(req.user!.userId, req.body);
+  sendSuccess(res, user, 'Profile updated successfully');
+});
+
+/**
  * PUT /api/auth/change-password
  */
 export const changePassword = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
