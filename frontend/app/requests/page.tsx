@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { useDebounce } from "@/lib/useDebounce";
 import Sidebar from "@/components/Sidebar";
 import { QRApprovalModal } from "@/components/QRApprovalModal";
+import { QRScanner } from "@/components/QRScanner";
 import {
   Search,
   BookOpen,
@@ -45,9 +46,36 @@ const reqStatusLabel: Record<string, string> = {
   REJECTED: "Rejected",
 };
 
+function parseApprovalData(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith("BRW|")) {
+    return { token: trimmed };
+  }
+
+  try {
+    const url = new URL(trimmed, window.location.origin);
+    const requestId = url.searchParams.get("request");
+    const token = url.searchParams.get("token");
+    if (requestId && token) return { requestId, token };
+  } catch {
+    // not a full URL
+  }
+
+  const queryString = trimmed.includes("?") ? trimmed.split("?")[1] : trimmed;
+  const params = new URLSearchParams(queryString);
+  const requestId = params.get("request");
+  const token = params.get("token");
+  if (requestId && token) return { requestId, token };
+
+  return null;
+}
+
 export default function RequestsPage() {
   const { user } = useAuth();
   const isLibrarian = user?.role === "LIBRARIAN";
+  const canScanBorrowQr = !isLibrarian && (user?.role === "STUDENT" || user?.role === "FACULTY");
 
   // Borrowed books (transactions)
   const [txns, setTxns] = useState<any[]>([]);
@@ -91,6 +119,8 @@ export default function RequestsPage() {
 
   // QR Approval modal state (librarian only)
   const [qrApprovalTarget, setQrApprovalTarget] = useState<any>(null);
+  const [qrScanTarget, setQrScanTarget] = useState<any>(null);
+  const [qrScanError, setQrScanError] = useState("");
 
   // ── Load borrowed books (transactions) ──
   const loadTransactions = useCallback(async () => {
@@ -253,6 +283,39 @@ export default function RequestsPage() {
     setQrApprovalTarget(null);
     loadRequests();
     setTimeout(() => setSuccessMsg(""), 4000);
+  };
+
+  const openQrScanner = (request: any) => {
+    setQrScanTarget(request);
+    setQrScanError("");
+  };
+
+  const handleQrScan = async (scannedText: string) => {
+    const approvalData = parseApprovalData(scannedText);
+    if (!approvalData) {
+      setQrScanError("Invalid QR code. Please scan the librarian's approval QR code.");
+      return;
+    }
+
+    if (!qrScanTarget?.id) {
+      setQrScanError("No pending request is selected. Please try again.");
+      return;
+    }
+
+    try {
+      const res = await api.approveByQRCode(qrScanTarget.id, approvalData.token || approvalData.requestId);
+      if (res.success) {
+        setQrScanTarget(null);
+        setQrScanError("");
+        setSuccessMsg("Borrow request approved successfully");
+        loadRequests();
+        setTimeout(() => setSuccessMsg(""), 4000);
+      } else {
+        setQrScanError(res.error || "Unable to approve this request.");
+      }
+    } catch {
+      setQrScanError("Unable to approve this request. Please try again.");
+    }
   };
 
   const openRejectModal = (request: any) => {
@@ -636,13 +699,21 @@ export default function RequestsPage() {
                                   </button>
                                 </>
                               )}
-                              {!isLibrarian && req.status === "PENDING" && (
-                                <span className="inline-flex items-center gap-1 text-xs text-amber-400">
-                                  <Clock className="w-3.5 h-3.5" /> Awaiting approval
-                                </span>
+                              {canScanBorrowQr && req.status === "PENDING" && (
+                                <button
+                                  onClick={() => openQrScanner(req)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  <QrCode className="w-3.5 h-3.5" /> Scan QR
+                                </button>
                               )}
                               {!isLibrarian && req.status !== "PENDING" && (
                                 <span className="text-xs text-zinc-500">—</span>
+                              )}
+                              {!isLibrarian && req.status === "PENDING" && !canScanBorrowQr && (
+                                <span className="inline-flex items-center gap-1 text-xs text-amber-400">
+                                  <Clock className="w-3.5 h-3.5" /> Awaiting approval
+                                </span>
                               )}
                             </div>
                           </td>
@@ -816,6 +887,17 @@ export default function RequestsPage() {
           onClose={() => setQrApprovalTarget(null)}
           onApproved={() => handleQRApproved(qrApprovalTarget)}
         />
+      )}
+
+      {qrScanTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          {qrScanError && (
+            <div className="absolute top-4 left-1/2 z-[70] -translate-x-1/2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400 shadow-lg shadow-black/30">
+              {qrScanError}
+            </div>
+          )}
+          <QRScanner onScan={handleQrScan} onClose={() => setQrScanTarget(null)} />
+        </div>
       )}
     </div>
   );

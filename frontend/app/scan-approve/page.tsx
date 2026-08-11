@@ -95,7 +95,13 @@ function ScanApproveContent() {
     }
 
     setShowScanner(false);
-    await confirmApproval(approvalData.requestId, approvalData.token);
+    const requestId = approvalData.requestId || initialRequestId;
+    if (!requestId) {
+      setStatus("error");
+      setMessage("This QR code is missing the request reference. Please use it from the borrow request page.");
+      return;
+    }
+    await confirmApproval(requestId, approvalData.token || approvalData.requestId);
   };
 
   const handleManualSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -107,7 +113,14 @@ function ScanApproveContent() {
       return;
     }
 
-    await confirmApproval(approvalData.requestId, approvalData.token);
+    const requestId = approvalData.requestId || initialRequestId;
+    if (!requestId) {
+      setStatus("error");
+      setMessage("This QR code is missing the request reference. Please use it from the borrow request page.");
+      return;
+    }
+
+    await confirmApproval(requestId, approvalData.token || approvalData.requestId);
   };
 
   return (
