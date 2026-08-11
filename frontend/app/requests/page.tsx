@@ -226,6 +226,8 @@ export default function RequestsPage() {
         setSuccessMsg("Book declared missing");
         loadTransactions();
         setTimeout(() => setSuccessMsg(""), 4000);
+      } else if (res.rateLimited) {
+        setMissingError("You're moving too fast. Please wait a moment and try again.");
       } else {
         setMissingError(res.error || "Failed to declare book missing");
       }
@@ -276,6 +278,8 @@ export default function RequestsPage() {
         setSuccessMsg("Borrow request rejected");
         loadRequests();
         setTimeout(() => setSuccessMsg(""), 4000);
+      } else if (res.rateLimited) {
+        setRejectError("You're moving too fast. Please wait a moment and try again.");
       } else {
         setRejectError(res.error || "Failed to reject request");
       }

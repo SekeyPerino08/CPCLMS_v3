@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
+import { useDebounce } from "@/lib/useDebounce";
 import Sidebar from "@/components/Sidebar";
 import {
   Search,
@@ -42,6 +43,12 @@ export default function ActivitiesPage() {
   const [toDate, setToDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
+  const debouncedSearch = useDebounce(search, 400);
+  const debouncedActionFilter = useDebounce(actionFilter, 400);
+  const debouncedUserFilter = useDebounce(userFilter, 400);
+  const debouncedFromDate = useDebounce(fromDate, 400);
+  const debouncedToDate = useDebounce(toDate, 400);
+
   const isLibrarian = user?.role === "LIBRARIAN";
 
   const loadData = useCallback(async () => {
@@ -52,11 +59,11 @@ export default function ActivitiesPage() {
         page: String(currentPage),
         limit: String(PAGE_SIZE),
       };
-      if (search) params.search = search;
-      if (actionFilter) params.action = actionFilter;
-      if (userFilter) params.userId = userFilter;
-      if (fromDate) params.fromDate = fromDate;
-      if (toDate) params.toDate = toDate;
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (debouncedActionFilter) params.action = debouncedActionFilter;
+      if (debouncedUserFilter) params.userId = debouncedUserFilter;
+      if (debouncedFromDate) params.fromDate = debouncedFromDate;
+      if (debouncedToDate) params.toDate = debouncedToDate;
 
       const res = await api.get<any>(`/activities?${new URLSearchParams(params).toString()}`);
       if (res.success) {
@@ -68,7 +75,7 @@ export default function ActivitiesPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, actionFilter, userFilter, fromDate, toDate, currentPage]);
+  }, [debouncedSearch, debouncedActionFilter, debouncedUserFilter, debouncedFromDate, debouncedToDate, currentPage]);
 
   useEffect(() => {
     loadData();
@@ -76,7 +83,7 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, actionFilter, userFilter, fromDate, toDate]);
+  }, [debouncedSearch, debouncedActionFilter, debouncedUserFilter, debouncedFromDate, debouncedToDate]);
 
   const formatTimestamp = (d?: string) => {
     if (!d) return "—";

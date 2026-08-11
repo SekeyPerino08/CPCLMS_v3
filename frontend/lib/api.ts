@@ -4,7 +4,9 @@
 // - Provides typed request/response methods
 // ============================================================
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+  ? `${window.location.protocol}//${window.location.host}/api`
+  : 'http://localhost:4000/api');
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -31,10 +33,14 @@ class ApiClient {
 
   // In-flight request deduplication map (keyed by method + endpoint + body)
   private inflight = new Map<string, Promise<ApiResponse<any>>>();
+  // Short-lived deduplication for rapid repeated actions such as double-clicks
+  private recentRequests = new Map<string, number>();
   // Client-side rate-limit cooldown: timestamp until which requests are suppressed
   private rateLimitUntil = 0;
   // How long to suppress requests after receiving a 429 (ms)
   private static readonly RATE_LIMIT_COOLDOWN_MS = 10000;
+  // How long to suppress identical actions after an initial submit
+  private static readonly DEDUP_WINDOW_MS = 1600;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -98,6 +104,21 @@ class ApiClient {
       return this.inflight.get(cacheKey) as Promise<ApiResponse<T>>;
     }
 
+    if (!['GET', 'HEAD'].includes(method.toUpperCase())) {
+      const now = Date.now();
+      const lastAttempt = this.recentRequests.get(cacheKey);
+      if (lastAttempt && now - lastAttempt < ApiClient.DEDUP_WINDOW_MS) {
+        return {
+          success: false,
+          error: 'Please wait a moment before trying that again.',
+          rateLimited: true,
+          retryAfterMs: ApiClient.DEDUP_WINDOW_MS - (now - lastAttempt),
+        } as ApiResponse<T>;
+      }
+      this.recentRequests.set(cacheKey, now);
+      setTimeout(() => this.recentRequests.delete(cacheKey), ApiClient.DEDUP_WINDOW_MS);
+    }
+
     const promise = this.doFetch<T>(endpoint, options, headers, cacheKey);
     this.inflight.set(cacheKey, promise);
     return promise;
@@ -130,7 +151,7 @@ class ApiClient {
           success: false,
           rateLimited: true,
           retryAfterMs: ApiClient.RATE_LIMIT_COOLDOWN_MS,
-          error: data.error || 'Too many requests, please try again later.',
+          error: data.error || 'Too many requests. Please wait a moment and try again.',
         } as ApiResponse<T>;
       }
 
